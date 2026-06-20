@@ -1,0 +1,110 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v1.2.3, etc.
+
+jobs:
+  build:
+    name: Build Plugin ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, xml, dom
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies (production only)
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update version in plugin file
+        run: |
+          sed -i "s/Version: .*/Version: ${{ steps.get_version.outputs.VERSION }}/" wp-speakeasy.php
+          sed -i "s/define( 'SPEAKEASY_VERSION', '.*' );/define( 'SPEAKEASY_VERSION', '${{ steps.get_version.outputs.VERSION }}' );/" wp-speakeasy.php
+
+      - name: Create production ZIP
+        run: |
+          zip -r wp-speakeasy.zip . \
+            -x "*.git*" \
+            -x "*.github/*" \
+            -x "node_modules/*" \
+            -x "tests/*" \
+            -x "docs/*" \
+            -x "reports/*" \
+            -x "PRPs/*" \
+            -x "*.md" \
+            -x "CLAUDE.md" \
+            -x "MEMORY.md" \
+            -x "CONTEXT.md" \
+            -x "DECISIONS.md" \
+            -x "CHANGELOG.md" \
+            -x "phpunit.xml*" \
+            -x "phpstan.neon" \
+            -x "composer.lock" \
+            -x ".gitignore" \
+            -x ".llmignore" \
+            -x "*.log"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wp-speakeasy.zip
+          generate_release_notes: true
+          body: |
+            ## WP Speakeasy ${{ steps.get_version.outputs.VERSION }}
+
+            ### Installation
+            Download `wp-speakeasy.zip` and install via:
+            - WordPress Admin: Plugins → Add New → Upload Plugin
+            - WP-CLI: `wp plugin install wp-speakeasy.zip --activate`
+            - FTP: Extract to `/wp-content/plugins/wp-speakeasy/`
+
+            ### What's Included
+            - Production-ready plugin with Composer dependencies
+            - No development files (tests, docs, etc.)
+            - Optimized autoloader
+
+            ### Requirements
+            - WordPress 5.6+
+            - PHP 7.4+
+            - HTTPS (for Application Passwords)
+
+            ### Documentation
+            - [Installation Guide](https://github.com/${{ github.repository }}/blob/main/docs/INSTALLATION.md)
+            - [API Integration](https://github.com/${{ github.repository }}/blob/main/docs/API_INTEGRATION.md)
+            - [README](https://github.com/${{ github.repository }}/blob/main/README.md)
+
+            ---
+
+            🤖 Built automatically by GitHub Actions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact (for download)
+        uses: actions/upload-artifact@v3
+        with:
+          name: wp-speakeasy-${{ steps.get_version.outputs.VERSION }}
+          path: wp-speakeasy.zip
+          retention-days: 90
