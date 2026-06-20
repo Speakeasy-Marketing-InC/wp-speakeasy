@@ -11,7 +11,7 @@
 /**
  * Class Speakeasy_Admin_Page
  *
- * Manages the admin interface under Settings → WP Speakeasy.
+ * Manages the admin interface as a top-level menu item.
  * Displays module status, diagnostics, and system information.
  *
  * @since 1.0.0
@@ -35,18 +35,20 @@ class Speakeasy_Admin_Page {
 	/**
 	 * Add admin menu
 	 *
-	 * Adds submenu under Settings.
+	 * Adds top-level menu item in WordPress admin sidebar.
 	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	public function add_admin_menu(): void {
-		add_options_page(
+		add_menu_page(
 			'WP Speakeasy',                         // Page title.
 			'WP Speakeasy',                         // Menu title.
 			'manage_options',                       // Capability.
 			'wp-speakeasy',                         // Menu slug.
-			array( $this, 'render_settings_page' )  // Callback.
+			array( $this, 'render_settings_page' ), // Callback.
+			'dashicons-admin-generic',              // Icon (WordPress dashicon).
+			30                                      // Position (after Comments).
 		);
 	}
 
