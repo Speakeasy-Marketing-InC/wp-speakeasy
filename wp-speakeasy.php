@@ -30,6 +30,11 @@ if ( ! defined( 'SPEAKEASY_API_ENDPOINT' ) ) {
 	define( 'SPEAKEASY_API_ENDPOINT', 'https://server.speakeasymarketinginc.com/api/wordpress-sites' );
 }
 
+// Default GitHub repository for auto-updates (can be overridden via wp-config.php).
+if ( ! defined( 'SPEAKEASY_GITHUB_REPO' ) ) {
+	define( 'SPEAKEASY_GITHUB_REPO', 'Speakeasy-Marketing-InC/wp-speakeasy' );
+}
+
 // Load Composer autoloader.
 if ( file_exists( SPEAKEASY_PATH . 'vendor/autoload.php' ) ) {
 	require_once SPEAKEASY_PATH . 'vendor/autoload.php';

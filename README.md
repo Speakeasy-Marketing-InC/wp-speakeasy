@@ -44,30 +44,35 @@ wp plugin activate wp-speakeasy
 
 ## Configuration
 
-**No configuration required!** The plugin works out of the box with Speakeasy's production backend.
+**No configuration required!** The plugin works out of the box with:
+- Automatic backend reporting to Speakeasy's production server
+- Automatic updates from GitHub releases
+- Zero-configuration deployment
 
 ### How It Works
 
 1. **Install & activate** the plugin on a WordPress site
 2. **Plugin auto-generates** a unique 64-character API key for this site
-3. **Registers with Speakeasy backend** automatically (using built-in API key)
+3. **Registers with Speakeasy backend** automatically
 4. **Sends daily health checks** to monitor plugin status
 5. **Reports errors and updates** automatically
+6. **Auto-updates from GitHub** when new releases are published
 
-No manual site registration, no API keys to configure - everything is automatic!
+No manual configuration needed - everything works automatically!
 
 ### Optional Configuration
 
+Only needed if you want to customize default behavior:
+
 ```php
-// GitHub Auto-Updater (optional)
-define( 'SPEAKEASY_GITHUB_REPO', 'speakeasy/wp-speakeasy' );
-define( 'SPEAKEASY_GITHUB_TOKEN', 'ghp_xxxxxxxxxxxx' ); // For private repos
-
-// Custom Speakeasy User API Key (optional - defaults to built-in key)
-define( 'SPEAKEASY_USER_API_KEY', 'spk_your_custom_api_key' );
-
 // Custom API Endpoint (optional - defaults to Speakeasy production server)
 define( 'SPEAKEASY_API_ENDPOINT', 'https://your-custom-endpoint.com/api/wordpress-sites' );
+
+// Custom GitHub Repository (optional - defaults to Speakeasy-Marketing-InC/wp-speakeasy)
+define( 'SPEAKEASY_GITHUB_REPO', 'your-org/your-fork' );
+
+// GitHub Token (optional - only needed for private repositories)
+define( 'SPEAKEASY_GITHUB_TOKEN', 'ghp_xxxxxxxxxxxx' );
 ```
 
 ## Modules
@@ -203,9 +208,11 @@ All API calls are non-blocking and fail silently.
 
 ### Auto-Updates Not Working
 
-1. Verify `SPEAKEASY_GITHUB_REPO` is defined in wp-config.php
-2. Check GitHub repository is accessible
-3. For private repos, ensure `SPEAKEASY_GITHUB_TOKEN` is set
+1. Auto-updates work automatically - no configuration needed
+2. Check WP Speakeasy admin page for update status
+3. Use manual "Check for Updates" button to force check
+4. Verify GitHub repository is accessible (defaults to Speakeasy-Marketing-InC/wp-speakeasy)
+5. For custom/private repos, ensure `SPEAKEASY_GITHUB_REPO` and `SPEAKEASY_GITHUB_TOKEN` are set
 
 ## Support
 

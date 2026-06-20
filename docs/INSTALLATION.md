@@ -243,28 +243,26 @@ wp plugin activate wp-speakeasy
 
 ## Configuration
 
-After installation, configure the plugin in `wp-config.php`.
+**No configuration required!** The plugin works immediately after activation with:
+- ✅ Automatic updates from GitHub (Speakeasy-Marketing-InC/wp-speakeasy)
+- ✅ Automatic backend reporting to Speakeasy production server
+- ✅ All features enabled by default
 
-### Basic Configuration (Optional)
+### Optional Configuration
 
-The plugin works immediately without configuration. The settings below are **optional**.
+Only needed if you want to customize default behavior:
 
-### Auto-Update Configuration
+#### Custom GitHub Repository
 
-To enable automatic updates from GitHub:
+Override the default GitHub repository (only needed for forks or custom deployments):
 
 ```php
 // wp-config.php
 
-/**
- * WP Speakeasy: GitHub Auto-Updater
- *
- * Enables automatic plugin updates from GitHub releases.
- * Remove these lines to disable auto-updates.
- */
-define( 'SPEAKEASY_GITHUB_REPO', 'speakeasy/wp-speakeasy' );
+// Custom GitHub repository (optional - defaults to Speakeasy-Marketing-InC/wp-speakeasy)
+define( 'SPEAKEASY_GITHUB_REPO', 'your-org/your-fork' );
 
-// Only needed for private repositories
+// GitHub token (only needed for private repositories)
 define( 'SPEAKEASY_GITHUB_TOKEN', 'ghp_xxxxxxxxxxxxxxxxxxxx' );
 ```
 
@@ -274,26 +272,22 @@ define( 'SPEAKEASY_GITHUB_TOKEN', 'ghp_xxxxxxxxxxxxxxxxxxxx' );
 3. Select scopes: `repo` (full control)
 4. Copy token and paste above
 
-### API Reporting Configuration
+#### Custom API Endpoint
 
-To enable centralized monitoring:
+Override the default Speakeasy backend endpoint (only needed for custom deployments):
 
 ```php
 // wp-config.php
 
-/**
- * WP Speakeasy: API Reporting
- *
- * Sends health checks and status updates to your monitoring API.
- * Remove these lines to disable reporting.
- */
-define( 'SPEAKEASY_API_ENDPOINT', 'https://api.speakeasy.com/wp-plugin' );
-define( 'SPEAKEASY_API_TOKEN', 'spk_xxxxxxxxxxxxxxxxxxxx' );
+// Custom API endpoint (optional - defaults to Speakeasy production server)
+define( 'SPEAKEASY_API_ENDPOINT', 'https://your-custom-endpoint.com/api/wordpress-sites' );
 ```
 
 See [API_INTEGRATION.md](API_INTEGRATION.md) for full API documentation.
 
 ### Complete Configuration Example
+
+This is what optional customization looks like (most users don't need this):
 
 ```php
 <?php
@@ -304,18 +298,15 @@ See [API_INTEGRATION.md](API_INTEGRATION.md) for full API documentation.
 // ... existing WordPress config ...
 
 /**
- * WP Speakeasy Configuration (Optional)
- *
- * All settings below are optional. The plugin works without them.
+ * WP Speakeasy Configuration (Optional - only if customizing defaults)
  */
 
-// GitHub Auto-Updater (optional)
-define( 'SPEAKEASY_GITHUB_REPO', 'speakeasy/wp-speakeasy' );
+// Custom GitHub repository (optional)
+define( 'SPEAKEASY_GITHUB_REPO', 'your-org/your-fork' );
 define( 'SPEAKEASY_GITHUB_TOKEN', 'ghp_xxxxxxxxxxxxxxxxxxxx' );
 
-// API Reporting (optional)
-define( 'SPEAKEASY_API_ENDPOINT', 'https://api.speakeasy.com/wp-plugin' );
-define( 'SPEAKEASY_API_TOKEN', 'spk_xxxxxxxxxxxxxxxxxxxx' );
+// Custom API endpoint (optional)
+define( 'SPEAKEASY_API_ENDPOINT', 'https://your-custom-endpoint.com/api/wordpress-sites' );
 
 /* That's all, stop editing! Happy publishing. */
 ```
