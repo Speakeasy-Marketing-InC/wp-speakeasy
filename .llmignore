@@ -1,0 +1,59 @@
+# .llmignore
+# Files and directories the AI must never touch.
+# Keep this in sync with the PROTECTED FILES section in CLAUDE.md.
+
+# Environment and secrets
+.env
+.env.*
+.env.local
+.env.production
+
+# WordPress configuration — contains database credentials
+wp-config.php
+
+# Web server configuration
+.htaccess
+web.config
+
+# Dependency lockfiles — managed by package managers, not the AI
+composer.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# WordPress core files — never modify WordPress core
+wp-admin/
+wp-includes/
+wp-content/index.php
+wp-content/plugins/index.php
+
+# Database exports and backups
+*.sql
+*.sql.gz
+*.db
+backup/
+backups/
+
+# Build output — generated, not source
+dist/
+build/
+vendor/
+node_modules/
+
+# IDE and system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Log files — contain sensitive runtime data
+*.log
+debug.log
+error_log
+
+# Temporary and cache files
+tmp/
+temp/
+cache/
+*.tmp
+*.cache
