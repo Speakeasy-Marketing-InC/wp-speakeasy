@@ -28,6 +28,8 @@ class Speakeasy_Admin_Page {
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
+		add_action( 'wp_ajax_speakeasy_check_update', array( $this, 'ajax_check_update' ) );
+		add_action( 'wp_ajax_speakeasy_trigger_update', array( $this, 'ajax_trigger_update' ) );
 	}
 
 	/**
@@ -75,6 +77,7 @@ class Speakeasy_Admin_Page {
 		$modules       = $manager->get_all_modules();
 		$system_info   = $this->get_system_info();
 		$diagnostics   = $this->run_diagnostics();
+		$update_info   = $this->get_update_info();
 
 		// Include the view template.
 		include SPEAKEASY_PATH . 'admin/views/dashboard.php';
@@ -120,5 +123,128 @@ class Speakeasy_Admin_Page {
 		}
 
 		return $diagnostics;
+	}
+
+	/**
+	 * Get update information
+	 *
+	 * Checks GitHub for the latest version if GitHub repo is configured.
+	 *
+	 * @since 1.0.0
+	 * @return array Update information.
+	 */
+	private function get_update_info(): array {
+		$update_info = array(
+			'current_version'   => SPEAKEASY_VERSION,
+			'latest_version'    => null,
+			'update_available'  => false,
+			'github_configured' => defined( 'SPEAKEASY_GITHUB_REPO' ) && SPEAKEASY_GITHUB_REPO,
+			'github_repo'       => defined( 'SPEAKEASY_GITHUB_REPO' ) ? SPEAKEASY_GITHUB_REPO : null,
+		);
+
+		// Only check for updates if GitHub repo is configured.
+		if ( ! $update_info['github_configured'] ) {
+			return $update_info;
+		}
+
+		// Check transient cache first (cache for 12 hours).
+		$cached = get_transient( 'speakeasy_latest_version' );
+		if ( false !== $cached ) {
+			$update_info['latest_version']   = $cached;
+			$update_info['update_available'] = version_compare( $cached, SPEAKEASY_VERSION, '>' );
+			return $update_info;
+		}
+
+		// Fetch latest release from GitHub API.
+		$github_repo = SPEAKEASY_GITHUB_REPO;
+		$api_url     = "https://api.github.com/repos/{$github_repo}/releases/latest";
+
+		$response = wp_remote_get(
+			$api_url,
+			array(
+				'timeout' => 10,
+				'headers' => array(
+					'Accept' => 'application/vnd.github.v3+json',
+				),
+			)
+		);
+
+		if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
+			$body    = wp_remote_retrieve_body( $response );
+			$release = json_decode( $body, true );
+
+			if ( isset( $release['tag_name'] ) ) {
+				$latest_version = ltrim( $release['tag_name'], 'v' );
+				set_transient( 'speakeasy_latest_version', $latest_version, 12 * HOUR_IN_SECONDS );
+
+				$update_info['latest_version']   = $latest_version;
+				$update_info['update_available'] = version_compare( $latest_version, SPEAKEASY_VERSION, '>' );
+			}
+		}
+
+		return $update_info;
+	}
+
+	/**
+	 * AJAX handler for checking updates
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public function ajax_check_update(): void {
+		check_ajax_referer( 'speakeasy_update', 'nonce' );
+
+		if ( ! current_user_can( 'update_plugins' ) ) {
+			wp_send_json_error( array( 'message' => 'Insufficient permissions' ) );
+		}
+
+		// Clear cache and check for updates.
+		delete_transient( 'speakeasy_latest_version' );
+		$update_info = $this->get_update_info();
+
+		wp_send_json_success( $update_info );
+	}
+
+	/**
+	 * AJAX handler for triggering manual update
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public function ajax_trigger_update(): void {
+		check_ajax_referer( 'speakeasy_update', 'nonce' );
+
+		if ( ! current_user_can( 'update_plugins' ) ) {
+			wp_send_json_error( array( 'message' => 'Insufficient permissions' ) );
+		}
+
+		if ( ! class_exists( 'Speakeasy_Auto_Updater' ) ) {
+			wp_send_json_error( array( 'message' => 'Auto-updater not available' ) );
+		}
+
+		// Trigger the update check which will download and install if available.
+		do_action( 'speakeasy_check_for_updates' );
+
+		// Clear cache.
+		delete_transient( 'speakeasy_latest_version' );
+
+		// Get fresh update info.
+		$update_info = $this->get_update_info();
+
+		if ( ! $update_info['update_available'] ) {
+			wp_send_json_success(
+				array(
+					'message'     => 'Plugin updated successfully!',
+					'update_info' => $update_info,
+				)
+			);
+		} else {
+			wp_send_json_error(
+				array(
+					'message'     => 'Update failed. Check error logs for details.',
+					'update_info' => $update_info,
+				)
+			);
+		}
 	}
 }
