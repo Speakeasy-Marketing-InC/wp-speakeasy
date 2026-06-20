@@ -12,14 +12,15 @@
  * Class Speakeasy_API_Reporter
  *
  * Handles communication with the Speakeasy backend API for:
- * - Activation reports
  * - Update reports
  * - Daily health checks
  * - Error reporting
  *
- * Configuration via wp-config.php:
- * - SPEAKEASY_API_ENDPOINT: API base URL (e.g., 'https://api.speakeasy.com/wp-plugin')
- * - SPEAKEASY_API_TOKEN: API authentication token
+ * Note: Activation reports are handled separately in wp-speakeasy.php with retry logic.
+ *
+ * Configuration:
+ * - SPEAKEASY_API_ENDPOINT: API base URL (defaults to https://api.speakeasy.com/wp-plugin)
+ * - API key: Auto-generated and stored in speakeasy_api_key option
  *
  * All API calls are non-blocking and fail silently to prevent breaking the site.
  *
@@ -50,12 +51,12 @@ class Speakeasy_API_Reporter {
 	 */
 	public function __construct() {
 		// Load configuration.
-		$this->api_endpoint = defined( 'SPEAKEASY_API_ENDPOINT' ) ? SPEAKEASY_API_ENDPOINT : null;
-		$this->api_token    = defined( 'SPEAKEASY_API_TOKEN' ) ? SPEAKEASY_API_TOKEN : null;
+		$this->api_endpoint = SPEAKEASY_API_ENDPOINT;
+		$this->api_token    = get_option( 'speakeasy_api_key' );
 
-		// Only initialize if API is configured.
-		if ( ! $this->api_endpoint || ! $this->api_token ) {
-			error_log( 'WP Speakeasy: API endpoint or token not configured. Reporting disabled.' );
+		// Only initialize if API key exists.
+		if ( ! $this->api_token ) {
+			error_log( 'WP Speakeasy: API key not generated yet. Reporting disabled.' );
 			return;
 		}
 
@@ -84,6 +85,7 @@ class Speakeasy_API_Reporter {
 	 * Send health check to API
 	 *
 	 * Reports plugin version, active modules, and system information.
+	 * Matches Speakeasy backend /wordpress-sites/heartbeat endpoint.
 	 *
 	 * @since 1.0.0
 	 * @return void
@@ -96,17 +98,16 @@ class Speakeasy_API_Reporter {
 		$module_status = $this->get_module_status();
 
 		$this->send_request(
-			'/health',
+			'/heartbeat',
 			array(
-				'site'              => home_url(),
-				'plugin_version'    => SPEAKEASY_VERSION,
-				'wordpress_version' => get_bloginfo( 'version' ),
-				'php_version'       => PHP_VERSION,
-				'active_modules'    => array_keys( array_filter( $module_status, function ( $m ) {
+				'siteUrl'          => home_url(),
+				'pluginVersion'    => SPEAKEASY_VERSION,
+				'wordpressVersion' => get_bloginfo( 'version' ),
+				'phpVersion'       => PHP_VERSION,
+				'activeModules'    => array_keys( array_filter( $module_status, function ( $m ) {
 					return $m['enabled'];
 				} ) ),
-				'module_status'     => $module_status,
-				'timestamp'         => current_time( 'mysql' ),
+				'moduleStatus'     => $module_status,
 			)
 		);
 	}
@@ -115,6 +116,7 @@ class Speakeasy_API_Reporter {
 	 * Send error report to API
 	 *
 	 * Reports errors and exceptions to the API for monitoring.
+	 * Matches Speakeasy backend /wordpress-sites/error endpoint.
 	 *
 	 * @since 1.0.0
 	 * @param string $error_type    Error type (e.g., 'module_error', 'update_failed').
@@ -130,12 +132,11 @@ class Speakeasy_API_Reporter {
 		$this->send_request(
 			'/error',
 			array(
-				'site'           => home_url(),
-				'plugin_version' => SPEAKEASY_VERSION,
-				'error_type'     => $error_type,
-				'error_message'  => $error_message,
-				'stack_trace'    => $stack_trace,
-				'timestamp'      => current_time( 'mysql' ),
+				'siteUrl'       => home_url(),
+				'pluginVersion' => SPEAKEASY_VERSION,
+				'errorType'     => $error_type,
+				'errorMessage'  => $error_message,
+				'stackTrace'    => $stack_trace,
 			)
 		);
 	}
@@ -175,8 +176,10 @@ class Speakeasy_API_Reporter {
 	 * Helper method to send requests to the Speakeasy API.
 	 * All requests are non-blocking and fail silently.
 	 *
+	 * No authentication required - endpoints are publicly accessible.
+	 *
 	 * @since 1.0.0
-	 * @param string $endpoint API endpoint path (e.g., '/health').
+	 * @param string $endpoint API endpoint path (e.g., '/heartbeat').
 	 * @param array  $data     Request body data.
 	 * @return void
 	 */
@@ -188,8 +191,7 @@ class Speakeasy_API_Reporter {
 			array(
 				'body'     => wp_json_encode( $data ),
 				'headers'  => array(
-					'Authorization' => 'Bearer ' . $this->api_token,
-					'Content-Type'  => 'application/json',
+					'Content-Type' => 'application/json',
 				),
 				'timeout'  => 5,
 				'blocking' => false, // Non-blocking: don't wait for response.

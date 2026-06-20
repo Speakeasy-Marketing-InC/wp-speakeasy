@@ -52,165 +52,189 @@ Build a full dashboard with:
 
 ## Configuration
 
-### WordPress Configuration
+### Zero Configuration Required
 
-Add these constants to each WordPress site's `wp-config.php`:
+**The plugin works out of the box - no configuration needed!**
+
+All Speakeasy reporting endpoints are publicly accessible (no authentication required), so you can simply install and activate the plugin on any WordPress site. The site will automatically register with the Speakeasy backend.
+
+**What happens on plugin activation:**
+1. Plugin generates a unique 64-character API key for site identification
+2. Sends `POST /wordpress-sites/register` to Speakeasy backend
+3. No authentication required - endpoint is publicly accessible
+4. Sends site URL, plugin API key, versions, and module status
+5. Retries hourly until backend confirms registration (HTTP 200/201)
+6. Backend stores the site in the `wordpress_sites` table
+
+**That's it!** No API keys to configure, no authentication to manage - just install and activate.
+
+### Custom API Endpoint (Optional)
+
+To use a different Speakeasy backend (staging/development):
 
 ```php
-/**
- * WP Speakeasy API Configuration
- *
- * SPEAKEASY_API_ENDPOINT: Your backend monitoring API base URL
- * SPEAKEASY_API_TOKEN: Authentication token for this site
- */
-define( 'SPEAKEASY_API_ENDPOINT', 'https://api.speakeasy.com/wp-plugin' );
-define( 'SPEAKEASY_API_TOKEN', 'spk_xxxxxxxxxxxxxxxxxxxx' );
+// wp-config.php
+define( 'SPEAKEASY_API_ENDPOINT', 'https://staging.speakeasymarketinginc.com/api/wordpress-sites' );
 ```
 
-### Environment Variables (Alternative)
+If not defined, defaults to: `https://server.speakeasymarketinginc.com/api/wordpress-sites`
 
-For containerized deployments:
+### How API Keys Work
 
+**Two Types of API Keys:**
+
+1. **Speakeasy User API Key** (`SPEAKEASY_USER_API_KEY`)
+   - Your personal Speakeasy account API key
+   - Starts with `spk_`
+   - Configured in wp-config.php
+   - Used to authenticate plugin API requests to the backend
+   - Requires `wordpress:plugin:report` permission
+   - Same key can be used across hundreds of WordPress sites
+
+2. **Plugin-Generated API Key** (`speakeasy_api_key` option)
+   - Automatically generated per WordPress site (64 random hex characters)
+   - Stored in WordPress database
+   - Sent to backend during registration
+   - Backend stores it in `wordpress_sites.pluginApiKey` column
+   - Used for identifying the specific WordPress site (not for auth)
+
+**View a site's plugin-generated API key:**
 ```bash
-# .env file
-SPEAKEASY_API_ENDPOINT=https://api.speakeasy.com/wp-plugin
-SPEAKEASY_API_TOKEN=spk_xxxxxxxxxxxxxxxxxxxx
-```
-
-Then in `wp-config.php`:
-
-```php
-define( 'SPEAKEASY_API_ENDPOINT', getenv('SPEAKEASY_API_ENDPOINT') );
-define( 'SPEAKEASY_API_TOKEN', getenv('SPEAKEASY_API_TOKEN') );
-```
-
-### Per-Site Tokens (Recommended)
-
-Generate unique tokens for each WordPress site to:
-- Track which site sent each request
-- Revoke access per site if needed
-- Prevent token leakage across sites
-
-```php
-// Site 1: www.lawfirm-a.com
-define( 'SPEAKEASY_API_TOKEN', 'spk_site1_aaabbbccc' );
-
-// Site 2: www.lawfirm-b.com
-define( 'SPEAKEASY_API_TOKEN', 'spk_site2_dddeeefff' );
+wp option get speakeasy_api_key
+# Returns: a1b2c3d4e5f6...
 ```
 
 ---
 
 ## API Endpoints
 
-The plugin sends requests to four endpoints:
+The plugin sends requests to four Speakeasy backend endpoints:
 
-### 1. Activation Report
+### 1. Site Registration
 
-**Endpoint:** `POST /activation`
+**Endpoint:** `POST /wordpress-sites/register`
 
 **When:** Plugin is activated on a WordPress site
 
-**Frequency:** Once per activation (or reactivation)
+**Frequency:** Retries hourly until confirmed by server (HTTP 200 or 201)
+
+**Authentication:** None (publicly accessible)
 
 **Request Body:**
 ```json
 {
-  "site": "https://www.example.com",
-  "plugin_version": "1.0.0",
-  "wordpress_version": "6.5.0",
-  "php_version": "8.1.0",
-  "timestamp": "2026-06-20 12:00:00"
+  "siteUrl": "https://www.example.com",
+  "pluginApiKey": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2",
+  "pluginVersion": "1.0.0",
+  "wordpressVersion": "6.5.0",
+  "phpVersion": "8.1.0",
+  "activeModules": ["app-passwords", "lap-meta"],
+  "moduleStatus": {
+    "app-passwords": {
+      "enabled": true,
+      "version": "1.0.0"
+    },
+    "lap-meta": {
+      "enabled": true,
+      "version": "1.0.0"
+    }
+  }
 }
 ```
 
-**Use Case:** Track new plugin installations across your fleet.
+**Success Response:** HTTP 200 or 201 stops retries
+
+**Use Case:**
+- Automatically register WordPress sites with Speakeasy backend
+- Track new plugin installations across your fleet
+- Collect plugin-generated API keys for site identification
+- Self-healing: survives network issues and server downtime
 
 ---
 
 ### 2. Update Report
 
-**Endpoint:** `POST /update`
+**Endpoint:** `POST /wordpress-sites/update`
 
-**When:** Plugin successfully auto-updates to a new version
+**When:** Plugin auto-updates to a new version
 
-**Frequency:** Once per successful update
+**Frequency:** Once per update attempt
+
+**Authentication:** None (publicly accessible)
 
 **Request Body:**
 ```json
 {
-  "site": "https://www.example.com",
-  "plugin_version": "1.1.0",
-  "status": "success",
-  "timestamp": "2026-06-20 14:30:00"
+  "siteUrl": "https://www.example.com",
+  "pluginVersion": "1.1.0",
+  "status": "success"
 }
 ```
 
 **Status Values:**
 - `success` - Update completed successfully
-- `failed` - Update encountered an error (future enhancement)
+- `failed` - Update encountered an error
 
-**Use Case:** Monitor update rollout progress after releasing a new version.
+**Use Case:** Monitor update rollout progress after releasing a new version across your fleet.
 
 ---
 
 ### 3. Daily Health Check
 
-**Endpoint:** `POST /health`
+**Endpoint:** `POST /wordpress-sites/heartbeat`
 
 **When:** Every 24 hours via WordPress cron
 
 **Frequency:** Daily (scheduled via `wp_schedule_event`)
 
+**Authentication:** None (publicly accessible)
+
 **Request Body:**
 ```json
 {
-  "site": "https://www.example.com",
-  "plugin_version": "1.0.0",
-  "wordpress_version": "6.5.0",
-  "php_version": "8.1.0",
-  "active_modules": [
+  "siteUrl": "https://www.example.com",
+  "pluginVersion": "1.0.0",
+  "wordpressVersion": "6.5.0",
+  "phpVersion": "8.1.0",
+  "activeModules": [
     "app-passwords",
     "lap-meta"
   ],
-  "module_status": {
+  "moduleStatus": {
     "app-passwords": {
       "enabled": true,
-      "version": "1.0.0",
-      "name": "Application Passwords Enabler"
+      "version": "1.0.0"
     },
     "lap-meta": {
       "enabled": true,
-      "version": "1.0.0",
-      "name": "LAP Meta Fields",
-      "fields": 7
+      "version": "1.0.0"
     }
-  },
-  "timestamp": "2026-06-20 09:00:00"
+  }
 }
 ```
 
-**Use Case:** Daily heartbeat to confirm sites are healthy and detect issues.
+**Use Case:** Daily heartbeat to confirm sites are healthy, detect stale sites, and track version drift.
 
 ---
 
 ### 4. Error Report
 
-**Endpoint:** `POST /error`
+**Endpoint:** `POST /wordpress-sites/error`
 
 **When:** Plugin encounters an error
 
 **Frequency:** As needed (currently used for critical errors only)
 
+**Authentication:** None (publicly accessible)
+
 **Request Body:**
 ```json
 {
-  "site": "https://www.example.com",
-  "plugin_version": "1.0.0",
-  "error_type": "update_failed",
-  "error_message": "Failed to download update from GitHub",
-  "stack_trace": "...",
-  "timestamp": "2026-06-20 15:45:00"
+  "siteUrl": "https://www.example.com",
+  "pluginVersion": "1.0.0",
+  "errorType": "update_failed",
+  "errorMessage": "Failed to download update from GitHub",
+  "stackTrace": "..."
 }
 ```
 
@@ -220,7 +244,7 @@ The plugin sends requests to four endpoints:
 - `rest_api_error` - REST API registration failed
 - Custom types as needed
 
-**Use Case:** Get immediate alerts when something goes wrong.
+**Use Case:** Get immediate alerts when something goes wrong, track error rates, detect patterns.
 
 ---
 
@@ -231,36 +255,30 @@ The plugin sends requests to four endpoints:
 All requests include:
 
 ```http
-POST /endpoint HTTP/1.1
-Host: api.speakeasy.com
+POST /wordpress-sites/endpoint HTTP/1.1
+Host: server.speakeasymarketinginc.com
 Content-Type: application/json
-Authorization: Bearer spk_xxxxxxxxxxxxxxxxxxxx
 User-Agent: WordPress/6.5; https://www.example.com
 ```
 
 ### Authentication
 
-**Method:** Bearer Token Authentication
+**No authentication required!**
 
-The `SPEAKEASY_API_TOKEN` is sent in the `Authorization` header:
+All WordPress plugin reporting endpoints (`/register`, `/heartbeat`, `/update`, `/error`) are publicly accessible. This allows:
+- WordPress plugins to report without API keys
+- Automation scripts to run without credentials
+- Simple, zero-configuration deployment
 
-```
-Authorization: Bearer spk_xxxxxxxxxxxxxxxxxxxx
-```
-
-Your backend should:
-1. Verify the token exists
-2. Validate it against your token database
-3. Return `401 Unauthorized` if invalid
-4. Return `200 OK` if valid (even if you don't process the data)
+The plugin sends a `pluginApiKey` in the request body for site identification purposes, but this is NOT used for authentication - it's just a reference field stored in the database.
 
 ### Request Properties
 
-All requests are:
-- **Non-blocking** (`blocking: false`) - WordPress doesn't wait for response
-- **5-second timeout** - Request aborts after 5 seconds
+- **Non-blocking** (except registration) - WordPress doesn't wait for response
+- **5-15 second timeout** - Requests abort after timeout
 - **JSON encoded** - Body is `wp_json_encode()`d
-- **Fail-silent** - Errors logged to PHP error log, not shown to users
+- **Fail-silent** - Errors logged to PHP error log, never shown to users
+- **No authentication** - All reporting endpoints are publicly accessible
 
 ---
 
@@ -268,200 +286,103 @@ All requests are:
 
 ### Expected Responses
 
-The plugin **does not wait for or process responses** because all requests are non-blocking.
+**Registration endpoint (`/register`):**
+- This is blocking - plugin waits for confirmation
+- Must return HTTP 200 or 201 to stop retries
+- Any other status code triggers hourly retry
 
-Your API should return:
-
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-{
-  "status": "received"
-}
-```
+**Other endpoints (`/heartbeat`, `/update`, `/error`):**
+- These are non-blocking - plugin doesn't wait for response
+- Any HTTP response is acceptable (plugin doesn't check it)
+- Backend should return HTTP 200 OK for successful processing
 
 ### Error Responses
 
-If your API returns an error, the plugin logs it locally but **continues working normally**.
+If the API is unreachable or returns an error, the plugin logs it locally but **continues working normally**.
 
-Example error log entry:
+Example error log entries:
 ```
-[20-Jun-2026 12:00:00 UTC] WP Speakeasy: API request failed: HTTP request failed! 500 Internal Server Error
+[20-Jun-2026 12:00:00 UTC] WP Speakeasy: Registration failed with status 401 - {"error":"Invalid API key"}
+[20-Jun-2026 12:05:00 UTC] WP Speakeasy: API request failed: Connection timed out
 ```
 
 **The WordPress site is never affected by API failures.**
 
 ---
 
-## Backend Implementation Examples
+## Backend Implementation
 
-### Example 1: Simple Node.js/Express Endpoint
+**The Speakeasy backend is already implemented and ready to receive plugin reports.**
 
-```javascript
-const express = require('express');
-const app = express();
+- **Production Backend:** `https://server.speakeasymarketinginc.com/api/wordpress-sites`
+- **Backend Documentation:** See the WordPress Plugin Integration Guide provided separately
+- **Database Schema:** `wordpress_sites` table (see backend docs)
+- **Authentication:** FlexAuth with `X-API-Key` header
+- **Required Permission:** `wordpress:plugin:report`
 
-app.use(express.json());
+### Getting Your API Key
 
-// Verify API token
-function verifyToken(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-
-  if (!token || !isValidToken(token)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  req.siteToken = token;
-  next();
-}
-
-// Health check endpoint
-app.post('/wp-plugin/health', verifyToken, async (req, res) => {
-  const { site, plugin_version, active_modules, timestamp } = req.body;
-
-  // Save to database
-  await db.healthChecks.create({
-    site,
-    plugin_version,
-    active_modules,
-    received_at: new Date(timestamp)
-  });
-
-  // Log for monitoring
-  console.log(`Health check from ${site}: v${plugin_version}`);
-
-  // Return success (site won't see this response)
-  res.json({ status: 'received' });
-});
-
-// Update report endpoint
-app.post('/wp-plugin/update', verifyToken, async (req, res) => {
-  const { site, plugin_version, status } = req.body;
-
-  await db.updates.create({
-    site,
-    version: plugin_version,
-    status,
-    received_at: new Date()
-  });
-
-  // Send alert if update failed
-  if (status === 'failed') {
-    await sendAlert(`Update failed on ${site}`);
-  }
-
-  res.json({ status: 'received' });
-});
-
-app.listen(3000);
-```
-
-### Example 2: Laravel API Route
+1. Log into Speakeasy: https://server.speakeasymarketinginc.com
+2. Navigate to API Keys page
+3. Create a new API key (starts with `spk_`)
+4. Ensure your user/role has `wordpress:plugin:report` permission
+5. Add the key to each WordPress site's `wp-config.php`:
 
 ```php
-<?php
-// routes/api.php
-
-use Illuminate\Http\Request;
-use App\Models\SiteHealth;
-use App\Models\SiteUpdate;
-
-Route::middleware('auth.token')->prefix('wp-plugin')->group(function () {
-
-    // Health check
-    Route::post('/health', function (Request $request) {
-        SiteHealth::create([
-            'site' => $request->site,
-            'plugin_version' => $request->plugin_version,
-            'wordpress_version' => $request->wordpress_version,
-            'php_version' => $request->php_version,
-            'active_modules' => $request->active_modules,
-            'module_status' => $request->module_status,
-            'timestamp' => $request->timestamp,
-        ]);
-
-        return response()->json(['status' => 'received']);
-    });
-
-    // Update report
-    Route::post('/update', function (Request $request) {
-        SiteUpdate::create([
-            'site' => $request->site,
-            'plugin_version' => $request->plugin_version,
-            'status' => $request->status,
-            'timestamp' => $request->timestamp,
-        ]);
-
-        return response()->json(['status' => 'received']);
-    });
-
-    // Activation report
-    Route::post('/activation', function (Request $request) {
-        // Track new installations
-        return response()->json(['status' => 'received']);
-    });
-
-    // Error report
-    Route::post('/error', function (Request $request) {
-        // Send alert to Slack/Email
-        Notification::send(new PluginErrorAlert($request->all()));
-        return response()->json(['status' => 'received']);
-    });
-});
+define( 'SPEAKEASY_USER_API_KEY', 'spk_your_api_key_here' );
 ```
 
-### Example 3: Google Cloud Function (Serverless)
+### Testing the Integration
 
-```javascript
-// index.js
-const {Firestore} = require('@google-cloud/firestore');
-const firestore = new Firestore();
+```bash
+# Test registration (replace with your actual API key)
+curl -X POST https://server.speakeasymarketinginc.com/api/wordpress-sites/register \
+  -H "X-API-Key: spk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "siteUrl": "https://test-site.com",
+    "pluginApiKey": "test_key_64_chars",
+    "pluginVersion": "1.0.0",
+    "wordpressVersion": "6.5.0",
+    "phpVersion": "8.1.0",
+    "activeModules": ["app-passwords"],
+    "moduleStatus": {
+      "app-passwords": {
+        "enabled": true,
+        "version": "1.0.0"
+      }
+    }
+  }'
 
-exports.wpPluginHealth = async (req, res) => {
-  // Verify token
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!verifyToken(token)) {
-    return res.status(401).send('Unauthorized');
-  }
-
-  // Save to Firestore
-  await firestore.collection('health_checks').add({
-    ...req.body,
-    received_at: new Date()
-  });
-
-  res.json({ status: 'received' });
-};
+# Should return HTTP 200/201 with the created wordpress_sites record
 ```
 
 ---
 
 ## Security Considerations
 
-### Token Security
+### API Key Security
 
 **DO:**
-- ✅ Use long, random tokens (min 32 characters)
-- ✅ Store tokens in environment variables
-- ✅ Use HTTPS for all API endpoints
-- ✅ Rotate tokens periodically
-- ✅ Use per-site tokens for better tracking
+- ✅ Keep your `SPEAKEASY_USER_API_KEY` secret
+- ✅ Store it in `wp-config.php` (outside web root)
+- ✅ Use HTTPS for all API communication
+- ✅ Use the same API key across all your WordPress sites (simplifies management)
+- ✅ Rotate API keys periodically via Speakeasy dashboard
 
 **DON'T:**
-- ❌ Commit tokens to git repositories
-- ❌ Use predictable tokens (e.g., "token123")
-- ❌ Share tokens across multiple sites
-- ❌ Send tokens via email or chat
+- ❌ Commit wp-config.php to public git repositories
+- ❌ Share API keys via email or chat
+- ❌ Hardcode API keys in plugin code
+- ❌ Use API keys without the `wordpress:plugin:report` permission
 
-### API Endpoint Security
+### Plugin-Generated API Keys
 
-**Recommendations:**
-- Rate limiting (e.g., 10 requests/minute per site)
-- IP allowlisting (if sites have static IPs)
-- Request signature validation
-- Token rotation mechanism
-- Audit logging
+Each WordPress site generates its own 64-character random API key for identification purposes. This key:
+- Is stored in the WordPress database (`speakeasy_api_key` option)
+- Is sent to the backend during registration
+- Is NOT used for authentication (authentication uses `SPEAKEASY_USER_API_KEY`)
+- Uniquely identifies the WordPress site in the `wordpress_sites` table
 
 ### Data Privacy
 
@@ -470,43 +391,49 @@ The plugin **never sends**:
 - User email addresses or PII
 - Post content or page data
 - Database credentials
-- API keys or secrets
+- WordPress admin passwords
 
 The plugin **only sends**:
 - Site URL (public information)
 - Plugin version (public information)
 - WordPress/PHP versions (public information)
+- Active modules list (configuration data)
 - Module status (configuration data)
-- Error messages (diagnostic data)
+- Error messages (diagnostic data only)
 
 ---
 
 ## Troubleshooting
 
-### API Not Receiving Requests
+### Site Not Registering with Backend
 
-**Check WordPress configuration:**
+**Check registration status:**
 ```bash
-# Via WP-CLI
-wp eval "echo defined('SPEAKEASY_API_ENDPOINT') ? 'Configured' : 'Not configured';"
+wp option get speakeasy_activation_reported
+# Returns: "yes" (registered) or empty (pending/failed)
+
+wp option get speakeasy_api_key
+# Returns: 64-character hex string (plugin's generated key)
 ```
 
 **Check error logs:**
 ```bash
 # WordPress error log
 tail -f /path/to/wordpress/wp-content/debug.log | grep "WP Speakeasy"
+
+# Common errors:
+# - "Registration failed with status 401" (backend API key issue)
+# - "Registration failed with status 403" (missing permission)
+# - Connection timeout errors
 ```
 
-**Test API manually:**
+**Manually trigger registration:**
 ```bash
-curl -X POST https://api.speakeasy.com/wp-plugin/health \
-  -H "Authorization: Bearer spk_xxxxxxxxxxxx" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "site": "https://test.com",
-    "plugin_version": "1.0.0",
-    "timestamp": "2026-06-20 12:00:00"
-  }'
+# Clear registration flag to force retry
+wp option delete speakeasy_activation_reported
+
+# Trigger retry immediately
+wp cron event run speakeasy_retry_activation_report
 ```
 
 ### Health Checks Not Running
@@ -525,15 +452,32 @@ wp cron event list
 wp cron event run speakeasy_daily_health_check
 ```
 
-### Authentication Failures
+**Check if health check ran:**
+```bash
+# Check error log for confirmation
+tail /path/to/debug.log | grep "health"
+```
 
-**Common issues:**
-- Token mismatch (check wp-config.php)
-- Bearer prefix missing in backend
-- Token expired or revoked
-- HTTPS required but using HTTP
+### HTTP Errors (401/403/500)
 
-**Debug:**
+**If you see HTTP errors in the logs:**
+
+Since the endpoints are publicly accessible, 401/403 errors shouldn't occur. If they do:
+
+1. **Check that you're using the correct endpoint:**
+   - Should be: `https://server.speakeasymarketinginc.com/api/wordpress-sites/register`
+   - NOT: `https://server.speakeasymarketinginc.com/wordpress-sites/register`
+
+2. **Check backend status:**
+   - Visit: https://server.speakeasymarketinginc.com/health
+   - Ensure the backend is running
+
+3. **Check WordPress can make outbound requests:**
+   ```bash
+   wp eval "var_dump(wp_remote_get('https://server.speakeasymarketinginc.com'));"
+   ```
+
+**Enable debug mode:**
 ```php
 // Add to wp-config.php temporarily
 define('WP_DEBUG', true);
@@ -542,121 +486,104 @@ define('WP_DEBUG_LOG', true);
 
 ---
 
-## Database Schema Examples
+## Database Schema
 
-### MySQL/PostgreSQL
+The Speakeasy backend stores WordPress sites in the `wordpress_sites` table.
 
-```sql
-CREATE TABLE site_health_checks (
-  id BIGSERIAL PRIMARY KEY,
-  site VARCHAR(255) NOT NULL,
-  plugin_version VARCHAR(20),
-  wordpress_version VARCHAR(20),
-  php_version VARCHAR(20),
-  active_modules JSONB,
-  module_status JSONB,
-  timestamp TIMESTAMP,
-  received_at TIMESTAMP DEFAULT NOW(),
-  INDEX idx_site (site),
-  INDEX idx_timestamp (timestamp)
-);
+**Key fields:**
+- `siteUrl` - WordPress site URL (unique)
+- `pluginApiKey` - Plugin's auto-generated 64-char key
+- `pluginVersion`, `wordpressVersion`, `phpVersion` - Version tracking
+- `activeModules`, `moduleStatus` - Module configuration (JSONB)
+- `status` - Site status: active, stale, error, no-plugin, inactive
+- `lastHeartbeat` - Last health check timestamp
+- `errorCount`, `errorHistory` - Error tracking
 
-CREATE TABLE site_updates (
-  id BIGSERIAL PRIMARY KEY,
-  site VARCHAR(255) NOT NULL,
-  plugin_version VARCHAR(20),
-  status VARCHAR(20),
-  timestamp TIMESTAMP,
-  received_at TIMESTAMP DEFAULT NOW(),
-  INDEX idx_site_status (site, status)
-);
-```
-
-### MongoDB
-
-```javascript
-db.createCollection("health_checks", {
-  validator: {
-    $jsonSchema: {
-      required: ["site", "plugin_version", "timestamp"],
-      properties: {
-        site: { type: "string" },
-        plugin_version: { type: "string" },
-        active_modules: { type: "array" },
-        module_status: { type: "object" }
-      }
-    }
-  }
-});
-
-db.health_checks.createIndex({ "site": 1, "timestamp": -1 });
-```
+See the WordPress Plugin Integration Guide (backend documentation) for full schema details.
 
 ---
 
-## Advanced: Building a Monitoring Dashboard
+## Monitoring Dashboard
 
-### Required Features
+The Speakeasy backend provides a dashboard for monitoring all WordPress sites:
 
 1. **Site List View**
-   - Total sites with plugin installed
-   - Current version distribution
-   - Sites pending updates
-   - Sites with errors
+   - View all registered WordPress sites
+   - Filter by status (active, stale, error)
+   - See current plugin versions
 
 2. **Site Detail View**
-   - Current plugin version
-   - Last health check timestamp
+   - Last heartbeat timestamp
    - Active modules
-   - Update history
    - Error history
+   - Version tracking
 
-3. **Alerts**
-   - Email/Slack when update fails
-   - Daily digest of site statuses
-   - Alert when site stops reporting (>48 hours)
+3. **Automatic Alerts**
+   - Sites marked "stale" after 48 hours without heartbeat
+   - Error reports tracked in `errorHistory` field
 
-4. **Analytics**
-   - Update success rate over time
-   - Average time to update after release
-   - Module adoption rates
-   - PHP/WordPress version distribution
+Access the dashboard at: https://server.speakeasymarketinginc.com
 
-### Technology Recommendations
+(Requires login with `system:wordpress:view` or `system:wordpress:manage` permission)
 
-**Backend:**
-- Laravel (PHP) + MySQL
-- Express.js (Node) + PostgreSQL
-- Django (Python) + PostgreSQL
-- Rails (Ruby) + PostgreSQL
+---
 
-**Frontend:**
-- React + Chart.js
-- Vue.js + Vuetify
-- Next.js + Tailwind CSS
+## Quick Start Guide
 
-**Infrastructure:**
-- Vercel/Netlify (frontend)
-- Heroku/Render (backend)
-- AWS Lambda + DynamoDB (serverless)
-- Google Cloud Run + Firestore
+**To integrate a WordPress site with Speakeasy monitoring:**
+
+1. **Install WP Speakeasy plugin** on WordPress site
+   ```bash
+   wp plugin install /path/to/wp-speakeasy.zip
+   ```
+
+2. **Activate the plugin:**
+   ```bash
+   wp plugin activate wp-speakeasy
+   ```
+
+3. **Verify registration:**
+   ```bash
+   # Wait a few seconds, then check
+   wp option get speakeasy_activation_reported
+   # Should return: yes
+
+   # Check the Speakeasy dashboard
+   # Visit: https://server.speakeasymarketinginc.com
+   # Site should appear in WordPress Sites list
+   ```
+
+**That's it!** The plugin will now:
+- ✅ Send daily heartbeats automatically
+- ✅ Report errors automatically
+- ✅ Report version updates automatically
+- ✅ Auto-register with zero configuration
+
+No API keys to manage, no wp-config.php changes needed!
 
 ---
 
 ## Support
 
-For questions or issues with API integration:
+For issues or questions:
 
 - **GitHub Issues:** https://github.com/speakeasy/wp-speakeasy/issues
-- **Email:** dev@speakeasy.com
-- **Documentation:** https://docs.speakeasy.com/wp-plugin
+- **Speakeasy Dashboard:** https://server.speakeasymarketinginc.com
+- **Backend Documentation:** See WordPress Plugin Integration Guide
 
 ---
 
 ## Changelog
 
+### v1.0.1 (2026-06-20)
+- Updated to match Speakeasy production backend
+- Changed authentication from Bearer tokens to X-API-Key header
+- Updated field names to camelCase (siteUrl, pluginVersion, etc.)
+- Endpoints now: /register, /heartbeat, /update, /error
+- Requires `SPEAKEASY_USER_API_KEY` configuration
+
 ### v1.0.0 (2026-06-20)
-- Initial API integration documentation
-- Four endpoints: activation, update, health, error
-- Bearer token authentication
-- Non-blocking requests
+- Initial release with auto-registration
+- Daily health checks
+- Error reporting
+- Update tracking

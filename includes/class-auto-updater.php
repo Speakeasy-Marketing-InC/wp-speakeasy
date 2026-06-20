@@ -159,54 +159,49 @@ class Speakeasy_Auto_Updater {
 	/**
 	 * Send update report to API
 	 *
-	 * Reports update status to the Speakeasy API if configured.
+	 * Reports update status to the Speakeasy API.
 	 *
 	 * This method sends a non-blocking POST request to your backend monitoring
 	 * system to track plugin updates across multiple WordPress sites.
 	 *
-	 * Configuration (in wp-config.php):
-	 * ```php
-	 * define( 'SPEAKEASY_API_ENDPOINT', 'https://api.speakeasy.com/wp-plugin' );
-	 * define( 'SPEAKEASY_API_TOKEN', 'spk_xxxxxxxxxxxx' );
-	 * ```
+	 * Configuration:
+	 * - SPEAKEASY_API_ENDPOINT: Defaults to https://api.speakeasy.com/wp-plugin
+	 *   (can be overridden in wp-config.php)
+	 * - API key: Auto-generated on plugin activation, stored in speakeasy_api_key option
 	 *
 	 * API Request:
 	 * - Method: POST
 	 * - URL: {SPEAKEASY_API_ENDPOINT}/update
-	 * - Auth: Bearer {SPEAKEASY_API_TOKEN}
+	 * - Auth: Bearer {auto-generated-api-key}
 	 * - Body: { site, plugin_version, status, timestamp }
 	 *
 	 * Example use case:
-	 * If managing 38 law firm websites, this allows you to build a centralized
+	 * If managing hundreds of WordPress sites, this allows you to build a centralized
 	 * dashboard showing which sites successfully updated and which failed.
 	 *
-	 * Note: This is OPTIONAL. The plugin works perfectly without API reporting.
-	 * If not configured, this method silently returns without sending anything.
+	 * Note: This is automatic. The plugin sends update reports using the API key
+	 * that was auto-registered during plugin activation.
 	 *
 	 * @since 1.0.0
 	 * @param string $status Update status ('success' or 'failed').
 	 * @return void
 	 */
 	private function send_update_report( string $status ): void {
-		// Only send report if API is configured in wp-config.php.
-		// If not defined, skip reporting (plugin still works normally).
-		if ( ! defined( 'SPEAKEASY_API_ENDPOINT' ) || ! defined( 'SPEAKEASY_API_TOKEN' ) ) {
-			return;
-		}
-
 		// Send non-blocking POST request to centralized monitoring API.
 		// This allows tracking update status across multiple WordPress sites.
+		// No authentication required - endpoint is publicly accessible.
 		wp_remote_post(
 			SPEAKEASY_API_ENDPOINT . '/update',
 			array(
-				'body'    => array(
-					'site'           => home_url(),
-					'plugin_version' => SPEAKEASY_VERSION,
-					'status'         => $status,
-					'timestamp'      => current_time( 'mysql' ),
+				'body'     => wp_json_encode(
+					array(
+						'siteUrl'       => home_url(),
+						'pluginVersion' => SPEAKEASY_VERSION,
+						'status'        => $status,
+					)
 				),
-				'headers' => array(
-					'Authorization' => 'Bearer ' . SPEAKEASY_API_TOKEN,
+				'headers'  => array(
+					'Content-Type' => 'application/json',
 				),
 				'timeout'  => 5,
 				'blocking' => false, // Non-blocking: don't wait for response or slow down site.

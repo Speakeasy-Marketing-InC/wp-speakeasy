@@ -44,16 +44,30 @@ wp plugin activate wp-speakeasy
 
 ## Configuration
 
-Add these constants to your `wp-config.php`:
+**No configuration required!** The plugin works out of the box with Speakeasy's production backend.
+
+### How It Works
+
+1. **Install & activate** the plugin on a WordPress site
+2. **Plugin auto-generates** a unique 64-character API key for this site
+3. **Registers with Speakeasy backend** automatically (using built-in API key)
+4. **Sends daily health checks** to monitor plugin status
+5. **Reports errors and updates** automatically
+
+No manual site registration, no API keys to configure - everything is automatic!
+
+### Optional Configuration
 
 ```php
 // GitHub Auto-Updater (optional)
 define( 'SPEAKEASY_GITHUB_REPO', 'speakeasy/wp-speakeasy' );
 define( 'SPEAKEASY_GITHUB_TOKEN', 'ghp_xxxxxxxxxxxx' ); // For private repos
 
-// API Reporter (optional)
-define( 'SPEAKEASY_API_ENDPOINT', 'https://api.speakeasy.com/wp-plugin' );
-define( 'SPEAKEASY_API_TOKEN', 'spk_xxxxxxxxxxxx' );
+// Custom Speakeasy User API Key (optional - defaults to built-in key)
+define( 'SPEAKEASY_USER_API_KEY', 'spk_your_custom_api_key' );
+
+// Custom API Endpoint (optional - defaults to Speakeasy production server)
+define( 'SPEAKEASY_API_ENDPOINT', 'https://your-custom-endpoint.com/api/wordpress-sites' );
 ```
 
 ## Modules
