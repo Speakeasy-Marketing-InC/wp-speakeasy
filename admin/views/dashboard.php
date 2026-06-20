@@ -71,6 +71,43 @@ if ( ! defined( 'ABSPATH' ) ) {
 			<?php endif; ?>
 		</div>
 
+		<!-- Backend Registration -->
+		<div class="speakeasy-registration-card">
+			<h2>Backend Registration</h2>
+			<?php if ( $registration_info['api_endpoint'] ) : ?>
+				<p>
+					<strong>API Endpoint:</strong> <?php echo esc_html( $registration_info['api_endpoint'] ); ?><br>
+					<strong>Plugin API Key:</strong> <code><?php echo esc_html( substr( $registration_info['api_key'], 0, 16 ) . '...' ); ?></code><br>
+					<strong>Registration Status:</strong>
+					<?php if ( $registration_info['registered'] ) : ?>
+						<span style="color: green;">✓ Registered</span>
+					<?php else : ?>
+						<span style="color: orange;">⚠ Pending</span>
+					<?php endif; ?>
+				</p>
+
+				<?php if ( $registration_info['registered'] ) : ?>
+					<div class="notice notice-success inline">
+						<p>This site is successfully registered with Speakeasy backend.</p>
+					</div>
+				<?php else : ?>
+					<div class="notice notice-warning inline">
+						<p>Registration pending. The plugin will automatically retry every hour until successful.</p>
+					</div>
+				<?php endif; ?>
+
+				<p>
+					<button type="button" id="send-activation-btn" class="button">
+						<?php echo $registration_info['registered'] ? 'Re-send Registration' : 'Send Registration Now'; ?>
+					</button>
+				</p>
+
+				<div id="registration-message" style="margin-top: 10px;"></div>
+			<?php else : ?>
+				<p>Backend registration is not configured.</p>
+			<?php endif; ?>
+		</div>
+
 		<!-- Status Overview -->
 		<div class="speakeasy-status-card">
 			<h2>System Information</h2>
@@ -194,11 +231,31 @@ if ( ! defined( 'ABSPATH' ) ) {
 			color: #0c5460;
 			border: 1px solid #bee5eb;
 		}
+		#registration-message {
+			padding: 10px;
+			border-radius: 3px;
+		}
+		#registration-message.success {
+			background: #d4edda;
+			color: #155724;
+			border: 1px solid #c3e6cb;
+		}
+		#registration-message.error {
+			background: #f8d7da;
+			color: #721c24;
+			border: 1px solid #f5c6cb;
+		}
+		#registration-message.info {
+			background: #d1ecf1;
+			color: #0c5460;
+			border: 1px solid #bee5eb;
+		}
 	</style>
 
 	<script>
 	jQuery(document).ready(function($) {
 		var updateNonce = '<?php echo esc_js( wp_create_nonce( 'speakeasy_update' ) ); ?>';
+		var activationNonce = '<?php echo esc_js( wp_create_nonce( 'speakeasy_activation' ) ); ?>';
 
 		// Check for updates button
 		$('#check-update-btn').on('click', function() {
@@ -298,6 +355,53 @@ if ( ! defined( 'ABSPATH' ) ) {
 						.show();
 					$btn.prop('disabled', false).text('Update Now');
 					$('#check-update-btn').prop('disabled', false);
+				}
+			});
+		});
+
+		// Send activation button
+		$('#send-activation-btn').on('click', function() {
+			var $btn = $(this);
+			$btn.prop('disabled', true).text('Sending...');
+			$('#registration-message').removeClass('success error info').hide();
+
+			$.ajax({
+				url: ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'speakeasy_send_activation',
+					nonce: activationNonce
+				},
+				success: function(response) {
+					if (response.success) {
+						$('#registration-message')
+							.addClass('success')
+							.html('<strong>Success!</strong> ' + response.data.message)
+							.show();
+
+						// Update status text
+						$('.speakeasy-registration-card').find('strong:contains("Registration Status:")').next()
+							.html('<span style="color: green;">✓ Registered</span>');
+
+						// Update notice
+						$('.speakeasy-registration-card .notice').removeClass('notice-warning').addClass('notice-success')
+							.find('p').text('This site is successfully registered with Speakeasy backend.');
+
+						$btn.text('Re-send Registration');
+					} else {
+						$('#registration-message')
+							.addClass('error')
+							.html('<strong>Error:</strong> ' + (response.data.message || 'Unknown error'))
+							.show();
+					}
+					$btn.prop('disabled', false);
+				},
+				error: function() {
+					$('#registration-message')
+						.addClass('error')
+						.text('Request failed. Please try again.')
+						.show();
+					$btn.prop('disabled', false).text($btn.data('original-text') || 'Send Registration Now');
 				}
 			});
 		});

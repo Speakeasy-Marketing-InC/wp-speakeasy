@@ -30,6 +30,7 @@ class Speakeasy_Admin_Page {
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'wp_ajax_speakeasy_check_update', array( $this, 'ajax_check_update' ) );
 		add_action( 'wp_ajax_speakeasy_trigger_update', array( $this, 'ajax_trigger_update' ) );
+		add_action( 'wp_ajax_speakeasy_send_activation', array( $this, 'ajax_send_activation' ) );
 	}
 
 	/**
@@ -75,11 +76,12 @@ class Speakeasy_Admin_Page {
 		}
 
 		// Get data for display.
-		$manager       = Speakeasy_Module_Manager::instance();
-		$modules       = $manager->get_all_modules();
-		$system_info   = $this->get_system_info();
-		$diagnostics   = $this->run_diagnostics();
-		$update_info   = $this->get_update_info();
+		$manager           = Speakeasy_Module_Manager::instance();
+		$modules           = $manager->get_all_modules();
+		$system_info       = $this->get_system_info();
+		$diagnostics       = $this->run_diagnostics();
+		$update_info       = $this->get_update_info();
+		$registration_info = $this->get_registration_info();
 
 		// Include the view template.
 		include SPEAKEASY_PATH . 'admin/views/dashboard.php';
@@ -245,6 +247,64 @@ class Speakeasy_Admin_Page {
 				array(
 					'message'     => 'Update failed. Check error logs for details.',
 					'update_info' => $update_info,
+				)
+			);
+		}
+	}
+
+	/**
+	 * Get registration information
+	 *
+	 * @since 1.0.0
+	 * @return array Registration information.
+	 */
+	private function get_registration_info(): array {
+		return array(
+			'registered'    => get_option( 'speakeasy_activation_reported' ) === 'yes',
+			'api_key'       => get_option( 'speakeasy_api_key' ),
+			'api_endpoint'  => defined( 'SPEAKEASY_API_ENDPOINT' ) ? SPEAKEASY_API_ENDPOINT : null,
+		);
+	}
+
+	/**
+	 * AJAX handler for sending activation report
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public function ajax_send_activation(): void {
+		check_ajax_referer( 'speakeasy_activation', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Insufficient permissions' ) );
+		}
+
+		// Clear the registration flag to force re-sending.
+		delete_option( 'speakeasy_activation_reported' );
+
+		// Send activation report.
+		if ( function_exists( 'speakeasy_send_activation_report' ) ) {
+			speakeasy_send_activation_report();
+		} else {
+			wp_send_json_error( array( 'message' => 'Activation function not available' ) );
+			return;
+		}
+
+		// Check if it was successful.
+		$registered = get_option( 'speakeasy_activation_reported' ) === 'yes';
+
+		if ( $registered ) {
+			wp_send_json_success(
+				array(
+					'message'    => 'Successfully registered with Speakeasy backend!',
+					'registered' => true,
+				)
+			);
+		} else {
+			wp_send_json_error(
+				array(
+					'message'    => 'Registration failed. Check error logs for details.',
+					'registered' => false,
 				)
 			);
 		}
