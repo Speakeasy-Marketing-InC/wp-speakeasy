@@ -161,16 +161,41 @@ class Speakeasy_Auto_Updater {
 	 *
 	 * Reports update status to the Speakeasy API if configured.
 	 *
+	 * This method sends a non-blocking POST request to your backend monitoring
+	 * system to track plugin updates across multiple WordPress sites.
+	 *
+	 * Configuration (in wp-config.php):
+	 * ```php
+	 * define( 'SPEAKEASY_API_ENDPOINT', 'https://api.speakeasy.com/wp-plugin' );
+	 * define( 'SPEAKEASY_API_TOKEN', 'spk_xxxxxxxxxxxx' );
+	 * ```
+	 *
+	 * API Request:
+	 * - Method: POST
+	 * - URL: {SPEAKEASY_API_ENDPOINT}/update
+	 * - Auth: Bearer {SPEAKEASY_API_TOKEN}
+	 * - Body: { site, plugin_version, status, timestamp }
+	 *
+	 * Example use case:
+	 * If managing 38 law firm websites, this allows you to build a centralized
+	 * dashboard showing which sites successfully updated and which failed.
+	 *
+	 * Note: This is OPTIONAL. The plugin works perfectly without API reporting.
+	 * If not configured, this method silently returns without sending anything.
+	 *
 	 * @since 1.0.0
 	 * @param string $status Update status ('success' or 'failed').
 	 * @return void
 	 */
 	private function send_update_report( string $status ): void {
-		// Only send report if API is configured.
+		// Only send report if API is configured in wp-config.php.
+		// If not defined, skip reporting (plugin still works normally).
 		if ( ! defined( 'SPEAKEASY_API_ENDPOINT' ) || ! defined( 'SPEAKEASY_API_TOKEN' ) ) {
 			return;
 		}
 
+		// Send non-blocking POST request to centralized monitoring API.
+		// This allows tracking update status across multiple WordPress sites.
 		wp_remote_post(
 			SPEAKEASY_API_ENDPOINT . '/update',
 			array(
@@ -183,8 +208,8 @@ class Speakeasy_Auto_Updater {
 				'headers' => array(
 					'Authorization' => 'Bearer ' . SPEAKEASY_API_TOKEN,
 				),
-				'timeout' => 5,
-				'blocking' => false, // Don't wait for response.
+				'timeout'  => 5,
+				'blocking' => false, // Non-blocking: don't wait for response or slow down site.
 			)
 		);
 	}
