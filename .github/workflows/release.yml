@@ -49,26 +49,37 @@ jobs:
 
       - name: Create production ZIP
         run: |
-          zip -r wp-speakeasy.zip . \
-            -x "*.git*" \
-            -x "*.github/*" \
-            -x "node_modules/*" \
-            -x "tests/*" \
-            -x "docs/*" \
-            -x "reports/*" \
-            -x "PRPs/*" \
-            -x "*.md" \
-            -x "CLAUDE.md" \
-            -x "MEMORY.md" \
-            -x "CONTEXT.md" \
-            -x "DECISIONS.md" \
-            -x "CHANGELOG.md" \
-            -x "phpunit.xml*" \
-            -x "phpstan.neon" \
-            -x "composer.lock" \
-            -x ".gitignore" \
-            -x ".llmignore" \
-            -x "*.log"
+          # Create a temporary directory with the plugin folder structure
+          mkdir -p /tmp/wp-speakeasy
+
+          # Copy files to temp directory (excluding dev files)
+          rsync -av --exclude='.git*' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='tests' \
+            --exclude='docs' \
+            --exclude='reports' \
+            --exclude='PRPs' \
+            --exclude='*.md' \
+            --exclude='CLAUDE.md' \
+            --exclude='MEMORY.md' \
+            --exclude='CONTEXT.md' \
+            --exclude='DECISIONS.md' \
+            --exclude='CHANGELOG.md' \
+            --exclude='phpunit.xml*' \
+            --exclude='phpstan.neon' \
+            --exclude='composer.lock' \
+            --exclude='.gitignore' \
+            --exclude='.llmignore' \
+            --exclude='*.log' \
+            ./ /tmp/wp-speakeasy/
+
+          # Create ZIP with wp-speakeasy folder inside
+          cd /tmp
+          zip -r wp-speakeasy.zip wp-speakeasy
+
+          # Move ZIP back to workspace
+          mv wp-speakeasy.zip $GITHUB_WORKSPACE/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
