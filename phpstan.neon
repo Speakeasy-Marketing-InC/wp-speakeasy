@@ -1,0 +1,11 @@
+parameters:
+    level: 8
+    paths:
+        - includes
+        - modules
+        - admin
+    bootstrapFiles:
+        - tests/phpstan-bootstrap.php
+    ignoreErrors:
+        # WordPress core functions are not available during static analysis
+        - '#Function (add_action|add_filter|remove_filter|remove_all_filters|do_action|apply_filters|register_meta|get_option|update_option|delete_option|wp_remote_post|wp_send_json|wp_send_json_error|current_user_can|esc_html|esc_attr|esc_url|wp_kses|sanitize_text_field|absint|home_url|current_time|error_log|plugin_dir_path|plugin_dir_url|register_activation_hook|register_deactivation_hook|is_wp_error|get_registered_meta_keys|__return_true) not found\.#'

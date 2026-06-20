@@ -1,0 +1,25 @@
+# Dependencies
+/vendor/
+composer.lock
+
+# Testing
+/coverage/
+.phpunit.result.cache
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
