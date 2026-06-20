@@ -72,6 +72,7 @@ jobs:
             --exclude='.gitignore' \
             --exclude='.llmignore' \
             --exclude='*.log' \
+            --exclude='*.zip' \
             ./ /tmp/wp-speakeasy/
 
           # Create ZIP with wp-speakeasy folder inside
@@ -80,6 +81,17 @@ jobs:
 
           # Move ZIP back to workspace
           mv wp-speakeasy.zip $GITHUB_WORKSPACE/
+
+      - name: Verify ZIP structure
+        run: |
+          echo "=== ZIP Contents ==="
+          unzip -l wp-speakeasy.zip | head -30
+          echo ""
+          echo "=== Checking for wp-speakeasy.php ==="
+          unzip -l wp-speakeasy.zip | grep "wp-speakeasy/wp-speakeasy.php" || echo "ERROR: Main plugin file not found!"
+          echo ""
+          echo "=== ZIP Size ==="
+          ls -lh wp-speakeasy.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
