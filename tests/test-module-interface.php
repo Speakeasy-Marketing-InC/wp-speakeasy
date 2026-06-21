@@ -21,8 +21,8 @@ class Test_Module_Interface extends WP_UnitTestCase {
 	 * Test that interface has required methods
 	 */
 	public function test_interface_has_required_methods() {
-		$reflection = new ReflectionClass( 'Speakeasy_Module' );
-		$methods    = $reflection->getMethods();
+		$reflection   = new ReflectionClass( 'Speakeasy_Module' );
+		$methods      = $reflection->getMethods();
 		$method_names = array_map(
 			function ( $method ) {
 				return $method->getName();

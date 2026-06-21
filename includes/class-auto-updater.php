@@ -41,13 +41,37 @@ class Speakeasy_Auto_Updater {
 	public function __construct() {
 		// Only initialize if GitHub repo is configured.
 		if ( ! defined( 'SPEAKEASY_GITHUB_REPO' ) ) {
-			error_log( 'WP Speakeasy: SPEAKEASY_GITHUB_REPO not defined in wp-config.php. Auto-updates disabled.' );
+			$error_msg = 'SPEAKEASY_GITHUB_REPO not defined in wp-config.php. Auto-updates disabled.';
+			error_log( 'WP Speakeasy: ' . $error_msg );
+
+			// Log to Error Logger if available.
+			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+				Speakeasy_Error_Logger::instance()->log_error(
+					'warning',
+					$error_msg,
+					__FILE__,
+					__LINE__,
+					array( 'component' => 'Auto Updater' )
+				);
+			}
 			return;
 		}
 
 		// Check if Plugin Update Checker is available.
 		if ( ! class_exists( 'YahnisElsts\PluginUpdateChecker\v5\PucFactory' ) ) {
-			error_log( 'WP Speakeasy: Plugin Update Checker library not found. Run composer install.' );
+			$error_msg = 'Plugin Update Checker library not found. Run composer install.';
+			error_log( 'WP Speakeasy: ' . $error_msg );
+
+			// Log to Error Logger if available.
+			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+				Speakeasy_Error_Logger::instance()->log_error(
+					'error',
+					$error_msg,
+					__FILE__,
+					__LINE__,
+					array( 'component' => 'Auto Updater' )
+				);
+			}
 			return;
 		}
 
@@ -81,6 +105,14 @@ class Speakeasy_Auto_Updater {
 			}
 		} catch ( Exception $e ) {
 			error_log( 'WP Speakeasy: Failed to initialize GitHub updater: ' . $e->getMessage() );
+
+			// Log to Error Logger if available.
+			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+				Speakeasy_Error_Logger::instance()->log_exception(
+					$e,
+					array( 'component' => 'Auto Updater' )
+				);
+			}
 		}
 	}
 

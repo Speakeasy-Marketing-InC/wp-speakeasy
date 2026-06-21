@@ -10,6 +10,38 @@ Never deleted. Older entries are never modified.
 
 ---
 
+## [1.1.0] — 2026-06-21
+
+### Added
+- **Error Logger System**: Comprehensive error tracking and dashboard display
+  - `Speakeasy_Error_Logger` singleton class for capturing plugin errors
+  - Error Log dashboard widget with severity badges and timestamps
+  - Stores up to 50 most recent errors in WordPress options
+  - Show/hide toggle for detailed error information (stack traces, context)
+  - AJAX-powered "Clear Error Log" functionality
+  - Automatic sanitization of sensitive data (API keys, tokens, passwords)
+  - File path sanitization (strips ABSPATH for security)
+  - Integration with existing components (API Reporter, Auto Updater, Module Manager)
+  - Error severity levels: error, warning, notice, exception
+  - Helper methods for logging WP_Error and Exception objects
+  - Admin-only access with `manage_options` capability check
+  - Never breaks site (graceful degradation if logging fails)
+
+- **API Key Toggle**: Show/hide button for full API key display in admin dashboard
+
+### Changed
+- Error Logger initialized early (priority 5) to capture initialization errors
+- All error_log() calls now also log to Error Logger for dashboard visibility
+- Dashboard UI reorganized with error log section after backend registration
+
+### Security
+- Error messages sanitized to remove sensitive patterns (keys, tokens, emails, credit cards)
+- Only administrators can view and clear error logs
+- AJAX actions protected with nonce verification
+- File paths shown as relative (ABSPATH stripped)
+
+---
+
 ## [1.0.0] — 2026-06-20
 
 ### Added

@@ -116,7 +116,7 @@ class Speakeasy_LAP_Meta_Module implements Speakeasy_Module {
 
 		// Load schema for each detected template.
 		foreach ( $templates as $template ) {
-			$schema                = $this->load_schema_file( $template );
+			$schema              = $this->load_schema_file( $template );
 			$this->field_schemas = array_merge( $this->field_schemas, $schema );
 		}
 

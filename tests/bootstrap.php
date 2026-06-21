@@ -38,5 +38,5 @@ if ( file_exists( $_tests_dir . '/includes/functions.php' ) ) {
 	}
 
 	// Mock WordPress functions used by the plugin.
-	require_once dirname( __FILE__ ) . '/wordpress-mocks.php';
+	require_once __DIR__ . '/wordpress-mocks.php';
 }

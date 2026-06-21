@@ -31,6 +31,8 @@ class Speakeasy_Admin_Page {
 		add_action( 'wp_ajax_speakeasy_check_update', array( $this, 'ajax_check_update' ) );
 		add_action( 'wp_ajax_speakeasy_trigger_update', array( $this, 'ajax_trigger_update' ) );
 		add_action( 'wp_ajax_speakeasy_send_activation', array( $this, 'ajax_send_activation' ) );
+		add_action( 'wp_ajax_speakeasy_get_errors', array( $this, 'ajax_get_errors' ) );
+		add_action( 'wp_ajax_speakeasy_clear_errors', array( $this, 'ajax_clear_errors' ) );
 	}
 
 	/**
@@ -82,6 +84,7 @@ class Speakeasy_Admin_Page {
 		$diagnostics       = $this->run_diagnostics();
 		$update_info       = $this->get_update_info();
 		$registration_info = $this->get_registration_info();
+		$error_info        = $this->get_error_info();
 
 		// Include the view template.
 		include SPEAKEASY_PATH . 'admin/views/dashboard.php';
@@ -115,13 +118,13 @@ class Speakeasy_Admin_Page {
 		$diagnostics['app_passwords'] = apply_filters( 'wp_is_application_passwords_available', false );
 
 		// Check REST API accessibility.
-		$rest_url                 = rest_url();
-		$diagnostics['rest_api']  = ! empty( $rest_url );
+		$rest_url                = rest_url();
+		$diagnostics['rest_api'] = ! empty( $rest_url );
 
 		// Count registered meta fields.
-		$manager                       = Speakeasy_Module_Manager::instance();
-		$lap_module                    = $manager->get_module( 'lap-meta' );
-		$diagnostics['meta_fields']    = 0;
+		$manager                    = Speakeasy_Module_Manager::instance();
+		$lap_module                 = $manager->get_module( 'lap-meta' );
+		$diagnostics['meta_fields'] = 0;
 		if ( $lap_module && method_exists( $lap_module, 'get_field_schemas' ) ) {
 			$diagnostics['meta_fields'] = count( $lap_module->get_field_schemas() );
 		}
@@ -260,9 +263,9 @@ class Speakeasy_Admin_Page {
 	 */
 	private function get_registration_info(): array {
 		return array(
-			'registered'    => get_option( 'speakeasy_activation_reported' ) === 'yes',
-			'api_key'       => get_option( 'speakeasy_api_key' ),
-			'api_endpoint'  => defined( 'SPEAKEASY_API_ENDPOINT' ) ? SPEAKEASY_API_ENDPOINT : null,
+			'registered'   => get_option( 'speakeasy_activation_reported' ) === 'yes',
+			'api_key'      => get_option( 'speakeasy_api_key' ),
+			'api_endpoint' => defined( 'SPEAKEASY_API_ENDPOINT' ) ? SPEAKEASY_API_ENDPOINT : null,
 		);
 	}
 
@@ -305,6 +308,95 @@ class Speakeasy_Admin_Page {
 				array(
 					'message'    => 'Registration failed. Check error logs for details.',
 					'registered' => false,
+				)
+			);
+		}
+	}
+
+	/**
+	 * Get error information
+	 *
+	 * Retrieves errors from Error Logger if available.
+	 *
+	 * @since 1.1.0
+	 * @return array Error information.
+	 */
+	private function get_error_info(): array {
+		if ( ! class_exists( 'Speakeasy_Error_Logger' ) ) {
+			return array(
+				'available' => false,
+				'errors'    => array(),
+				'count'     => 0,
+			);
+		}
+
+		$logger = Speakeasy_Error_Logger::instance();
+
+		return array(
+			'available' => true,
+			'errors'    => $logger->get_errors(),
+			'count'     => $logger->get_error_count(),
+		);
+	}
+
+	/**
+	 * AJAX handler for getting errors
+	 *
+	 * @since 1.1.0
+	 * @return void
+	 */
+	public function ajax_get_errors(): void {
+		check_ajax_referer( 'speakeasy_errors', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Insufficient permissions' ) );
+		}
+
+		if ( ! class_exists( 'Speakeasy_Error_Logger' ) ) {
+			wp_send_json_error( array( 'message' => 'Error logger not available' ) );
+		}
+
+		$logger = Speakeasy_Error_Logger::instance();
+
+		wp_send_json_success(
+			array(
+				'errors' => $logger->get_errors(),
+				'count'  => $logger->get_error_count(),
+			)
+		);
+	}
+
+	/**
+	 * AJAX handler for clearing errors
+	 *
+	 * @since 1.1.0
+	 * @return void
+	 */
+	public function ajax_clear_errors(): void {
+		check_ajax_referer( 'speakeasy_errors', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Insufficient permissions' ) );
+		}
+
+		if ( ! class_exists( 'Speakeasy_Error_Logger' ) ) {
+			wp_send_json_error( array( 'message' => 'Error logger not available' ) );
+		}
+
+		$logger = Speakeasy_Error_Logger::instance();
+		$result = $logger->clear_errors();
+
+		if ( $result ) {
+			wp_send_json_success(
+				array(
+					'message' => 'Error log cleared successfully',
+					'count'   => 0,
+				)
+			);
+		} else {
+			wp_send_json_error(
+				array(
+					'message' => 'Failed to clear error log',
 				)
 			);
 		}

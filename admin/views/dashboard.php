@@ -77,7 +77,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 			<?php if ( $registration_info['api_endpoint'] ) : ?>
 				<p>
 					<strong>API Endpoint:</strong> <?php echo esc_html( $registration_info['api_endpoint'] ); ?><br>
-					<strong>Plugin API Key:</strong> <code><?php echo esc_html( substr( $registration_info['api_key'], 0, 16 ) . '...' ); ?></code><br>
+					<strong>Plugin API Key:</strong>
+					<code id="api-key-display" style="user-select: all;"><?php echo esc_html( substr( $registration_info['api_key'], 0, 16 ) . '...' ); ?></code>
+					<button type="button" id="toggle-api-key-btn" class="button button-small" data-full-key="<?php echo esc_attr( $registration_info['api_key'] ); ?>" data-masked-key="<?php echo esc_attr( substr( $registration_info['api_key'], 0, 16 ) . '...' ); ?>" style="margin-left: 5px;">
+						Show Full Key
+					</button>
+					<br>
 					<strong>Registration Status:</strong>
 					<?php if ( $registration_info['registered'] ) : ?>
 						<span style="color: green;">✓ Registered</span>
@@ -107,6 +112,95 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<p>Backend registration is not configured.</p>
 			<?php endif; ?>
 		</div>
+
+		<!-- Error Log -->
+		<?php if ( $error_info['available'] ) : ?>
+			<div class="speakeasy-errors-card">
+				<h2>
+					Error Log
+					<?php if ( $error_info['count'] > 0 ) : ?>
+						<span class="error-badge" style="background: #dc3232; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 10px;">
+							<?php echo esc_html( $error_info['count'] ); ?>
+						</span>
+					<?php endif; ?>
+				</h2>
+
+				<?php if ( $error_info['count'] > 0 ) : ?>
+					<p>
+						<button type="button" id="clear-errors-btn" class="button">
+							Clear Error Log
+						</button>
+						<button type="button" id="refresh-errors-btn" class="button" style="margin-left: 5px;">
+							Refresh
+						</button>
+					</p>
+
+					<div id="error-log-container">
+						<table class="widefat" id="error-log-table">
+							<thead>
+								<tr>
+									<th style="width: 80px;">Severity</th>
+									<th style="width: 140px;">Timestamp</th>
+									<th>Message</th>
+									<th style="width: 200px;">Location</th>
+									<th style="width: 60px;">Details</th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $error_info['errors'] as $index => $error ) : ?>
+									<tr>
+										<td>
+											<span class="error-type error-type-<?php echo esc_attr( $error['type'] ); ?>">
+												<?php echo esc_html( ucfirst( $error['type'] ) ); ?>
+											</span>
+										</td>
+										<td><?php echo esc_html( $error['timestamp'] ); ?></td>
+										<td><?php echo esc_html( $error['message'] ); ?></td>
+										<td>
+											<code style="font-size: 11px;">
+												<?php echo esc_html( $error['file'] ); ?>
+												<?php if ( $error['line'] > 0 ) : ?>
+													:<?php echo esc_html( $error['line'] ); ?>
+												<?php endif; ?>
+											</code>
+										</td>
+										<td>
+											<?php if ( ! empty( $error['trace'] ) || ! empty( $error['context'] ) ) : ?>
+												<button type="button" class="button button-small toggle-details" data-index="<?php echo esc_attr( $index ); ?>">
+													Show
+												</button>
+											<?php else : ?>
+												<span style="color: #999;">—</span>
+											<?php endif; ?>
+										</td>
+									</tr>
+									<?php if ( ! empty( $error['trace'] ) || ! empty( $error['context'] ) ) : ?>
+										<tr class="error-details" id="error-details-<?php echo esc_attr( $index ); ?>" style="display: none;">
+											<td colspan="5" style="background: #f5f5f5; padding: 15px;">
+												<?php if ( ! empty( $error['context'] ) ) : ?>
+													<strong>Context:</strong>
+													<pre style="margin: 5px 0; padding: 10px; background: white; overflow-x: auto;"><?php echo esc_html( print_r( $error['context'], true ) ); ?></pre>
+												<?php endif; ?>
+												<?php if ( ! empty( $error['trace'] ) ) : ?>
+													<strong>Stack Trace:</strong>
+													<pre style="margin: 5px 0; padding: 10px; background: white; overflow-x: auto; font-size: 11px;"><?php echo esc_html( $error['trace'] ); ?></pre>
+												<?php endif; ?>
+											</td>
+										</tr>
+									<?php endif; ?>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+
+					<div id="error-message" style="margin-top: 10px;"></div>
+				<?php else : ?>
+					<div class="notice notice-success inline" id="no-errors-notice">
+						<p>No errors logged. Your plugin is running smoothly!</p>
+					</div>
+				<?php endif; ?>
+			</div>
+		<?php endif; ?>
 
 		<!-- Status Overview -->
 		<div class="speakeasy-status-card">
@@ -248,7 +342,47 @@ if ( ! defined( 'ABSPATH' ) ) {
 		#registration-message.info {
 			background: #d1ecf1;
 			color: #0c5460;
-			border: 1px solid #bee5eb;
+			border: #bee5eb;
+		}
+		#error-message {
+			padding: 10px;
+			border-radius: 3px;
+		}
+		#error-message.success {
+			background: #d4edda;
+			color: #155724;
+			border: 1px solid #c3e6cb;
+		}
+		#error-message.error {
+			background: #f8d7da;
+			color: #721c24;
+			border: 1px solid #f5c6cb;
+		}
+		.error-type {
+			padding: 3px 8px;
+			border-radius: 3px;
+			font-size: 11px;
+			font-weight: bold;
+			text-transform: uppercase;
+		}
+		.error-type-error {
+			background: #dc3232;
+			color: white;
+		}
+		.error-type-warning {
+			background: #ffb900;
+			color: white;
+		}
+		.error-type-notice {
+			background: #0073aa;
+			color: white;
+		}
+		.error-type-exception {
+			background: #d63638;
+			color: white;
+		}
+		#error-log-table tbody tr:hover {
+			background: #f9f9f9;
 		}
 	</style>
 
@@ -256,6 +390,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	jQuery(document).ready(function($) {
 		var updateNonce = '<?php echo esc_js( wp_create_nonce( 'speakeasy_update' ) ); ?>';
 		var activationNonce = '<?php echo esc_js( wp_create_nonce( 'speakeasy_activation' ) ); ?>';
+		var errorsNonce = '<?php echo esc_js( wp_create_nonce( 'speakeasy_errors' ) ); ?>';
 
 		// Check for updates button
 		$('#check-update-btn').on('click', function() {
@@ -404,6 +539,93 @@ if ( ! defined( 'ABSPATH' ) ) {
 					$btn.prop('disabled', false).text($btn.data('original-text') || 'Send Registration Now');
 				}
 			});
+		});
+
+		// Toggle API key visibility
+		$('#toggle-api-key-btn').on('click', function() {
+			var $btn = $(this);
+			var $display = $('#api-key-display');
+			var isShowing = $btn.data('showing') === true;
+
+			if (isShowing) {
+				// Hide the full key
+				$display.text($btn.data('masked-key'));
+				$btn.text('Show Full Key');
+				$btn.data('showing', false);
+			} else {
+				// Show the full key
+				$display.text($btn.data('full-key'));
+				$btn.text('Hide Key');
+				$btn.data('showing', true);
+			}
+		});
+
+		// Toggle error details
+		$(document).on('click', '.toggle-details', function() {
+			var $btn = $(this);
+			var index = $btn.data('index');
+			var $details = $('#error-details-' + index);
+
+			if ($details.is(':visible')) {
+				$details.hide();
+				$btn.text('Show');
+			} else {
+				$details.show();
+				$btn.text('Hide');
+			}
+		});
+
+		// Clear errors button
+		$('#clear-errors-btn').on('click', function() {
+			if (!confirm('Are you sure you want to clear all errors? This cannot be undone.')) {
+				return;
+			}
+
+			var $btn = $(this);
+			$btn.prop('disabled', true).text('Clearing...');
+			$('#error-message').removeClass('success error').hide();
+
+			$.ajax({
+				url: ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'speakeasy_clear_errors',
+					nonce: errorsNonce
+				},
+				success: function(response) {
+					if (response.success) {
+						$('#error-message')
+							.addClass('success')
+							.html('<strong>Success!</strong> ' + response.data.message)
+							.show();
+
+						// Hide error table and show success notice
+						$('#error-log-container').hide();
+						$('#clear-errors-btn').hide();
+						$('#refresh-errors-btn').hide();
+						$('#no-errors-notice').show();
+						$('.error-badge').remove();
+					} else {
+						$('#error-message')
+							.addClass('error')
+							.html('<strong>Error:</strong> ' + (response.data.message || 'Unknown error'))
+							.show();
+					}
+					$btn.prop('disabled', false).text('Clear Error Log');
+				},
+				error: function() {
+					$('#error-message')
+						.addClass('error')
+						.text('Request failed. Please try again.')
+						.show();
+					$btn.prop('disabled', false).text('Clear Error Log');
+				}
+			});
+		});
+
+		// Refresh errors button
+		$('#refresh-errors-btn').on('click', function() {
+			location.reload();
 		});
 	});
 	</script>

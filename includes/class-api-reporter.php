@@ -57,6 +57,17 @@ class Speakeasy_API_Reporter {
 		// Only initialize if API key exists.
 		if ( ! $this->api_token ) {
 			error_log( 'WP Speakeasy: API key not generated yet. Reporting disabled.' );
+
+			// Log to Error Logger if available.
+			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+				Speakeasy_Error_Logger::instance()->log_error(
+					'warning',
+					'API key not generated yet. Reporting disabled.',
+					__FILE__,
+					__LINE__,
+					array( 'component' => 'API Reporter' )
+				);
+			}
 			return;
 		}
 
@@ -104,9 +115,14 @@ class Speakeasy_API_Reporter {
 				'pluginVersion'    => SPEAKEASY_VERSION,
 				'wordpressVersion' => get_bloginfo( 'version' ),
 				'phpVersion'       => PHP_VERSION,
-				'activeModules'    => array_keys( array_filter( $module_status, function ( $m ) {
-					return $m['enabled'];
-				} ) ),
+				'activeModules'    => array_keys(
+					array_filter(
+						$module_status,
+						function ( $m ) {
+							return $m['enabled'];
+						}
+					)
+				),
 				'moduleStatus'     => $module_status,
 			)
 		);
@@ -201,6 +217,18 @@ class Speakeasy_API_Reporter {
 		// Log errors only (don't break site functionality).
 		if ( is_wp_error( $response ) ) {
 			error_log( 'WP Speakeasy: API request failed: ' . $response->get_error_message() );
+
+			// Log to Error Logger if available.
+			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+				Speakeasy_Error_Logger::instance()->log_wp_error(
+					$response,
+					array(
+						'component' => 'API Reporter',
+						'endpoint'  => $endpoint,
+						'url'       => $url,
+					)
+				);
+			}
 		}
 	}
 }

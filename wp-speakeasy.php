@@ -49,6 +49,10 @@ require_once SPEAKEASY_PATH . 'modules/app-passwords/class-app-passwords-module.
 require_once SPEAKEASY_PATH . 'modules/lap-meta/class-lap-meta-module.php';
 
 // Load optional components if they exist.
+if ( file_exists( SPEAKEASY_PATH . 'includes/class-error-logger.php' ) ) {
+	require_once SPEAKEASY_PATH . 'includes/class-error-logger.php';
+}
+
 if ( file_exists( SPEAKEASY_PATH . 'includes/class-auto-updater.php' ) ) {
 	require_once SPEAKEASY_PATH . 'includes/class-auto-updater.php';
 }
@@ -61,6 +65,22 @@ if ( file_exists( SPEAKEASY_PATH . 'includes/class-api-reporter.php' ) ) {
 if ( is_admin() && file_exists( SPEAKEASY_PATH . 'admin/class-admin-page.php' ) ) {
 	require_once SPEAKEASY_PATH . 'admin/class-admin-page.php';
 }
+
+/**
+ * Initialize Error Logger early
+ *
+ * Initialize the error logger before other components so it can capture
+ * errors during initialization.
+ *
+ * @since 1.1.0
+ * @return void
+ */
+function speakeasy_init_error_logger() {
+	if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+		Speakeasy_Error_Logger::instance();
+	}
+}
+add_action( 'plugins_loaded', 'speakeasy_init_error_logger', 5 );
 
 /**
  * Initialize WP Speakeasy plugin
@@ -162,7 +182,7 @@ function speakeasy_send_activation_report() {
 
 	foreach ( $modules as $id => $module ) {
 		if ( $module->is_enabled() ) {
-			$active_modules[] = $id;
+			$active_modules[]     = $id;
 			$module_status[ $id ] = array(
 				'enabled' => true,
 				'version' => $module->get_version(),
@@ -173,7 +193,7 @@ function speakeasy_send_activation_report() {
 	$response = wp_remote_post(
 		SPEAKEASY_API_ENDPOINT . '/register',
 		array(
-			'body'    => wp_json_encode(
+			'body'     => wp_json_encode(
 				array(
 					'siteUrl'          => home_url(),
 					'pluginApiKey'     => $plugin_api_key,
@@ -184,7 +204,7 @@ function speakeasy_send_activation_report() {
 					'moduleStatus'     => $module_status,
 				)
 			),
-			'headers' => array(
+			'headers'  => array(
 				'Content-Type' => 'application/json',
 			),
 			'timeout'  => 15,

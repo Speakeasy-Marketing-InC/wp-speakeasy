@@ -13,7 +13,7 @@
  */
 
 return array(
-	'spk_main_heading'                => array(
+	'spk_main_heading'            => array(
 		'type'          => 'string',
 		'single'        => true,
 		'show_in_rest'  => true,
@@ -22,7 +22,7 @@ return array(
 		},
 	),
 
-	'spk_video_section_left_text'     => array(
+	'spk_video_section_left_text' => array(
 		'type'          => 'string',
 		'single'        => true,
 		'show_in_rest'  => true,
@@ -31,7 +31,7 @@ return array(
 		},
 	),
 
-	'spk_gridbox_repeater'            => array(
+	'spk_gridbox_repeater'        => array(
 		'type'          => 'array',
 		'single'        => true,
 		'show_in_rest'  => array(
@@ -55,7 +55,7 @@ return array(
 		},
 	),
 
-	'spk_cta_bg_color'                => array(
+	'spk_cta_bg_color'            => array(
 		'type'          => 'string',
 		'single'        => true,
 		'show_in_rest'  => true,
@@ -64,7 +64,7 @@ return array(
 		},
 	),
 
-	'spk_cta_bg_hvr_color'            => array(
+	'spk_cta_bg_hvr_color'        => array(
 		'type'          => 'string',
 		'single'        => true,
 		'show_in_rest'  => true,
@@ -73,7 +73,7 @@ return array(
 		},
 	),
 
-	'spk_call_to_action_box_text'     => array(
+	'spk_call_to_action_box_text' => array(
 		'type'          => 'string',
 		'single'        => true,
 		'show_in_rest'  => true,
@@ -82,7 +82,7 @@ return array(
 		},
 	),
 
-	'spk_add_phone_number'            => array(
+	'spk_add_phone_number'        => array(
 		'type'          => 'array',
 		'single'        => true,
 		'show_in_rest'  => array(

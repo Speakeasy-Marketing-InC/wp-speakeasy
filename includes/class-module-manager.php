@@ -70,14 +70,29 @@ class Speakeasy_Module_Manager {
 	 * Register a module
 	 *
 	 * @since 1.0.0
-	 * @param string            $id     Module ID (alphanumeric with hyphens).
+	 * @param string           $id     Module ID (alphanumeric with hyphens).
 	 * @param Speakeasy_Module $module Module instance.
 	 * @return void
 	 */
 	public function register_module( string $id, Speakeasy_Module $module ): void {
 		// Validate module ID format.
 		if ( ! preg_match( '/^[a-z0-9-]+$/', $id ) ) {
-			error_log( "WP Speakeasy: Invalid module ID format: {$id}" );
+			$error_msg = "Invalid module ID format: {$id}";
+			error_log( 'WP Speakeasy: ' . $error_msg );
+
+			// Log to Error Logger if available.
+			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+				Speakeasy_Error_Logger::instance()->log_error(
+					'error',
+					$error_msg,
+					__FILE__,
+					__LINE__,
+					array(
+						'component' => 'Module Manager',
+						'module_id' => $id,
+					)
+				);
+			}
 			return;
 		}
 
