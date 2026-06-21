@@ -133,6 +133,11 @@ Nothing. Plugin fully functional and ready for deployment. Next steps would be:
 
 ---
 
+## SESSION 3 — 2026-06-21 — Fix Plugin Update Mechanism — open
+Branch: main
+
+---
+
 ## NEXT SESSION START POINT
 
 WP Speakeasy plugin v1.0.0 is complete and committed.
