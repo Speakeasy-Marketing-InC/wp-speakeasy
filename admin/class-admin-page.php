@@ -226,30 +226,48 @@ class Speakeasy_Admin_Page {
 		}
 
 		if ( ! class_exists( 'Speakeasy_Auto_Updater' ) ) {
-			wp_send_json_error( array( 'message' => 'Auto-updater not available' ) );
+			wp_send_json_error( array( 'message' => 'Auto-updater class not available. Run composer install.' ) );
 		}
 
-		// Trigger the update check which will download and install if available.
-		do_action( 'speakeasy_check_for_updates' );
+		// Get the auto-updater instance.
+		if ( ! isset( $GLOBALS['speakeasy_auto_updater'] ) || ! $GLOBALS['speakeasy_auto_updater'] ) {
+			wp_send_json_error( array( 'message' => 'Auto-updater not initialized' ) );
+		}
 
-		// Clear cache.
-		delete_transient( 'speakeasy_latest_version' );
+		$updater = $GLOBALS['speakeasy_auto_updater'];
 
-		// Get fresh update info.
-		$update_info = $this->get_update_info();
+		// Trigger manual update.
+		$result = $updater->trigger_manual_update();
 
-		if ( ! $update_info['update_available'] ) {
+		// Check result.
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error(
+				array(
+					'message'    => $result->get_error_message(),
+					'error_code' => $result->get_error_code(),
+				)
+			);
+		}
+
+		// Check if update was performed.
+		if ( isset( $result['updated'] ) && true === $result['updated'] ) {
+			// Clear cache after successful update.
+			delete_transient( 'speakeasy_latest_version' );
+
 			wp_send_json_success(
 				array(
-					'message'     => 'Plugin updated successfully!',
-					'update_info' => $update_info,
+					'message'          => $result['message'],
+					'previous_version' => $result['previous_version'],
+					'new_version'      => $result['new_version'],
 				)
 			);
 		} else {
-			wp_send_json_error(
+			// No update available or update not needed.
+			wp_send_json_success(
 				array(
-					'message'     => 'Update failed. Check error logs for details.',
-					'update_info' => $update_info,
+					'message'         => $result['message'],
+					'current_version' => $result['current_version'],
+					'latest_version'  => $result['latest_version'],
 				)
 			);
 		}

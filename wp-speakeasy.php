@@ -107,7 +107,7 @@ function speakeasy_automation_init() {
 
 	// Initialize auto-updater if available.
 	if ( class_exists( 'Speakeasy_Auto_Updater' ) ) {
-		new Speakeasy_Auto_Updater();
+		$GLOBALS['speakeasy_auto_updater'] = new Speakeasy_Auto_Updater();
 	}
 
 	// Initialize API reporter if available.

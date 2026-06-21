@@ -100,4 +100,13 @@ return array(
 			return current_user_can( 'edit_posts' );
 		},
 	),
+
+	'spk_show_map_section'        => array(
+		'type'          => 'boolean',
+		'single'        => true,
+		'show_in_rest'  => true,
+		'auth_callback' => function () {
+			return current_user_can( 'edit_posts' );
+		},
+	),
 );
