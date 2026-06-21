@@ -5,10 +5,12 @@ WordPress automation plugin for REST API enhancements and Application Passwords 
 ## Features
 
 - **Application Passwords Enabler**: Force-enables WordPress Application Passwords, overriding theme and security plugin restrictions
+- **REST API for Application Passwords**: Programmatically create Application Passwords using plugin API key authentication
 - **LAP Meta Fields**: Exposes Local Area Page custom meta fields to the WordPress REST API
 - **Auto-Updates**: Automatic updates via GitHub releases using Plugin Update Checker
 - **API Reporting**: Reports activation, updates, and health status to external API
-- **Admin Interface**: Settings page for module management and diagnostics
+- **Error Logging**: Comprehensive error tracking and dashboard display for debugging
+- **Admin Interface**: Settings page for module management, diagnostics, and error monitoring
 
 ## Requirements
 
@@ -157,6 +159,47 @@ wp-speakeasy/
 
 ## REST API Usage
 
+### Creating Application Passwords Programmatically
+
+The plugin provides a REST API endpoint for creating Application Passwords remotely using the plugin API key.
+
+**Endpoint**: `POST /wp-json/speakeasy/v1/application-passwords`
+
+**Authentication**: Plugin API key via `X-Speakeasy-API-Key` header
+
+**Request**:
+```bash
+curl -X POST https://yoursite.com/wp-json/speakeasy/v1/application-passwords \
+  -H "X-Speakeasy-API-Key: YOUR_PLUGIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "name": "Speakeasy Backend Access"
+  }'
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "password": "abcd 1234 efgh 5678 ijkl 9012",
+  "username": "admin",
+  "user_id": 1,
+  "name": "Speakeasy Backend Access"
+}
+```
+
+**Features**:
+- Automatically revokes existing passwords with the same name
+- Returns password only once (not stored or logged)
+- Full error handling with proper HTTP status codes
+- Audit logging for security monitoring
+
+**Finding Your Plugin API Key**:
+- Visit Settings → WP Speakeasy in WordPress admin
+- The API key is displayed in the "Backend Registration" section
+- Click "Show Full Key" to reveal the complete key
+
 ### Accessing LAP Meta Fields
 
 ```bash
@@ -165,7 +208,7 @@ curl -X GET "https://yoursite.com/wp-json/wp/v2/pages/123?context=edit" \
   -u "username:xxxx xxxx xxxx xxxx"
 ```
 
-### Generating Application Password
+### Generating Application Password Manually
 
 1. Navigate to Users → Profile
 2. Scroll to "Application Passwords" section

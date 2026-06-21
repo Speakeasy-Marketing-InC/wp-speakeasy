@@ -13,6 +13,20 @@ Never deleted. Older entries are never modified.
 ## [1.1.0] — 2026-06-21
 
 ### Added
+- **REST API for Application Password Creation**: New endpoint for programmatic Application Password management
+  - `POST /wp-json/speakeasy/v1/application-passwords` endpoint
+  - Authenticates using plugin API key via `X-Speakeasy-API-Key` header
+  - Creates Application Passwords for specified WordPress users
+  - Automatically revokes existing passwords with same name before creating new one
+  - Returns password only once (not stored or logged)
+  - Full error handling with proper HTTP status codes (400, 401, 403, 404, 500, 503)
+  - Timing-safe API key comparison using `hash_equals()` to prevent timing attacks
+  - Input validation and sanitization for username and password name
+  - Comprehensive audit logging using Error Logger
+  - Client IP tracking for security monitoring
+  - Supports custom password names or auto-generates timestamped names
+  - Complete test coverage with 10+ test cases
+
 - **Error Logger System**: Comprehensive error tracking and dashboard display
   - `Speakeasy_Error_Logger` singleton class for capturing plugin errors
   - Error Log dashboard widget with severity badges and timestamps

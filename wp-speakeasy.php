@@ -3,7 +3,7 @@
  * Plugin Name: WP Speakeasy
  * Plugin URI: https://github.com/speakeasy/wp-speakeasy
  * Description: WordPress automation toolkit for REST API enhancements. Enables Application Passwords, exposes custom meta fields to REST API, and provides auto-update capability.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Speakeasy
  * Author URI: https://speakeasy.com
  * License: GPL-2.0+
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants.
-define( 'SPEAKEASY_VERSION', '1.0.0' );
+define( 'SPEAKEASY_VERSION', '1.1.0' );
 define( 'SPEAKEASY_PATH', plugin_dir_path( __FILE__ ) );
 define( 'SPEAKEASY_URL', plugin_dir_url( __FILE__ ) );
 
@@ -64,6 +64,11 @@ if ( file_exists( SPEAKEASY_PATH . 'includes/class-api-reporter.php' ) ) {
 // Load admin page.
 if ( is_admin() && file_exists( SPEAKEASY_PATH . 'admin/class-admin-page.php' ) ) {
 	require_once SPEAKEASY_PATH . 'admin/class-admin-page.php';
+}
+
+// Load REST API.
+if ( file_exists( SPEAKEASY_PATH . 'includes/class-rest-api.php' ) ) {
+	require_once SPEAKEASY_PATH . 'includes/class-rest-api.php';
 }
 
 /**
@@ -113,6 +118,11 @@ function speakeasy_automation_init() {
 	// Initialize admin page if in admin area.
 	if ( is_admin() && class_exists( 'Speakeasy_Admin_Page' ) ) {
 		new Speakeasy_Admin_Page();
+	}
+
+	// Initialize REST API.
+	if ( class_exists( 'Speakeasy_REST_API' ) ) {
+		new Speakeasy_REST_API();
 	}
 }
 add_action( 'plugins_loaded', 'speakeasy_automation_init' );
