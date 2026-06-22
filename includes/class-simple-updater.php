@@ -340,7 +340,9 @@ class Speakeasy_Simple_Updater {
 			return $result;
 		}
 
-		// Find the extracted folder (GitHub ZIPs have repo-name-hash format).
+		// Find the extracted folder.
+		// GitHub release assets have wp-speakeasy/ folder directly.
+		// Zipballs have repo-name-hash format (but we don't use those anymore).
 		$extracted_folders = glob( $temp_dir . '/*', GLOB_ONLYDIR );
 		if ( empty( $extracted_folders ) ) {
 			$error = new WP_Error( 'no_folder', 'No folder found in extracted ZIP' );
@@ -352,22 +354,48 @@ class Speakeasy_Simple_Updater {
 		$source_dir = $extracted_folders[0];
 		$plugin_dir = WP_PLUGIN_DIR . '/wp-speakeasy';
 
+		// Log what we're about to do.
+		error_log(
+			sprintf(
+				'WP Speakeasy: Moving plugin from %s to %s',
+				$source_dir,
+				$plugin_dir
+			)
+		);
+
 		// Backup old plugin.
 		$backup_dir = WP_CONTENT_DIR . '/upgrade/wp-speakeasy-backup-' . time();
 		if ( $wp_filesystem->exists( $plugin_dir ) ) {
-			$wp_filesystem->move( $plugin_dir, $backup_dir );
+			error_log( 'WP Speakeasy: Backing up existing plugin to ' . $backup_dir );
+			$backed_up = $wp_filesystem->move( $plugin_dir, $backup_dir );
+			if ( ! $backed_up ) {
+				$error = new WP_Error( 'backup_failed', 'Could not backup existing plugin. Permissions issue?' );
+				$this->log_error( $error->get_error_message() );
+				$wp_filesystem->rmdir( $temp_dir, true );
+				return $error;
+			}
 		}
 
 		// Move new plugin into place.
+		error_log( 'WP Speakeasy: Installing new plugin version' );
 		$moved = $wp_filesystem->move( $source_dir, $plugin_dir );
 
 		if ( ! $moved ) {
+			// Get more details about why it failed.
+			$error_details = sprintf(
+				'Could not move new plugin files. Source: %s, Destination: %s, Writable: %s',
+				$source_dir,
+				$plugin_dir,
+				is_writable( dirname( $plugin_dir ) ) ? 'yes' : 'no'
+			);
+
 			// Restore backup.
 			if ( $wp_filesystem->exists( $backup_dir ) ) {
+				error_log( 'WP Speakeasy: Restoring backup after failed move' );
 				$wp_filesystem->move( $backup_dir, $plugin_dir );
 			}
 
-			$error = new WP_Error( 'move_failed', 'Could not move new plugin files into place' );
+			$error = new WP_Error( 'move_failed', $error_details );
 			$this->log_error( $error->get_error_message() );
 			$wp_filesystem->rmdir( $temp_dir, true );
 			return $error;

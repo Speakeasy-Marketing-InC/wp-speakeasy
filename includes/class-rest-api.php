@@ -344,6 +344,7 @@ class Speakeasy_REST_API {
 	 * Trigger plugin update
 	 *
 	 * REST API endpoint handler for triggering plugin updates.
+	 * Automatically checks for updates first, only installs if available.
 	 *
 	 * @since 1.2.0
 	 * @param WP_REST_Request $request Request object.
@@ -359,7 +360,23 @@ class Speakeasy_REST_API {
 		}
 
 		$updater = new Speakeasy_Simple_Updater();
-		$result  = $updater->update();
+
+		// Check for updates first.
+		$info = $updater->check_for_updates();
+		if ( is_wp_error( $info ) ) {
+			$this->log_error( 'error', 'Update check failed: ' . $info->get_error_message(), $request );
+
+			return new WP_Error(
+				'check_failed',
+				$info->get_error_message(),
+				array( 'status' => 500 )
+			);
+		}
+
+		$update_available = version_compare( $info['version'], SPEAKEASY_VERSION, '>' );
+
+		// Perform update (will return early if no update needed).
+		$result = $updater->update();
 
 		if ( is_wp_error( $result ) ) {
 			$this->log_error( 'error', 'Update failed: ' . $result->get_error_message(), $request );
@@ -373,13 +390,17 @@ class Speakeasy_REST_API {
 
 		error_log( 'WP Speakeasy: Update triggered via API - ' . $result['message'] );
 
+		// Return unified response with both check and update info.
 		return rest_ensure_response(
 			array(
-				'success'      => $result['success'],
-				'message'      => $result['message'],
-				'version'      => $result['version'],
-				'method'       => isset( $result['method'] ) ? $result['method'] : null,
-				'download_url' => isset( $result['download_url'] ) ? $result['download_url'] : null,
+				'success'          => $result['success'],
+				'message'          => $result['message'],
+				'current_version'  => SPEAKEASY_VERSION,
+				'latest_version'   => $info['version'],
+				'update_available' => $update_available,
+				'updated'          => isset( $result['method'] ),
+				'method'           => isset( $result['method'] ) ? $result['method'] : null,
+				'download_url'     => isset( $result['download_url'] ) ? $result['download_url'] : $info['download_url'],
 			)
 		);
 	}
