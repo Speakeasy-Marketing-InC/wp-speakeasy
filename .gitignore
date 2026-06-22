@@ -1,5 +1,5 @@
 # Dependencies
-/vendor/
+# /vendor/  # Commented out - vendor is committed for production deployment
 composer.lock
 
 # Testing
