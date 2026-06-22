@@ -110,6 +110,11 @@ function speakeasy_automation_init() {
 		new Speakeasy_API_Reporter();
 	}
 
+	// Initialize Simple Updater for automatic updates.
+	if ( class_exists( 'Speakeasy_Simple_Updater' ) ) {
+		new Speakeasy_Simple_Updater();
+	}
+
 	// Initialize admin page if in admin area.
 	if ( is_admin() && class_exists( 'Speakeasy_Admin_Page' ) ) {
 		new Speakeasy_Admin_Page();
@@ -247,12 +252,17 @@ add_action( 'speakeasy_retry_activation_report', 'speakeasy_send_activation_repo
  * Plugin deactivation hook
  *
  * Runs when the plugin is deactivated.
+ * Cleans up scheduled events.
  *
  * @since 1.0.0
  * @return void
  */
 function speakeasy_deactivation() {
-	// Optional: Clean up transients or scheduled events.
+	// Clear scheduled events.
+	wp_clear_scheduled_hook( 'speakeasy_retry_activation_report' );
+	wp_clear_scheduled_hook( 'speakeasy_daily_health_check' );
+	wp_clear_scheduled_hook( 'speakeasy_daily_auto_update' );
+
 	// Note: We don't delete options here in case user reactivates.
 }
 register_deactivation_hook( __FILE__, 'speakeasy_deactivation' );

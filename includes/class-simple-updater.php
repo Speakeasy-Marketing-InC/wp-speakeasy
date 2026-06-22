@@ -13,10 +13,78 @@
  * Class Speakeasy_Simple_Updater
  *
  * Handles plugin updates using WP-CLI or direct download method.
+ * Automatically checks for and installs updates daily.
  *
  * @since 1.2.0
  */
 class Speakeasy_Simple_Updater {
+
+	/**
+	 * Constructor
+	 *
+	 * Initializes automatic daily updates.
+	 *
+	 * @since 1.2.0
+	 */
+	public function __construct() {
+		$this->init_auto_update();
+	}
+
+	/**
+	 * Initialize automatic update scheduling
+	 *
+	 * Schedules a daily cron event to check for and install updates.
+	 *
+	 * @since 1.2.0
+	 * @return void
+	 */
+	private function init_auto_update() {
+		// Schedule daily auto-update check if not already scheduled.
+		if ( ! wp_next_scheduled( 'speakeasy_daily_auto_update' ) ) {
+			wp_schedule_event( time(), 'daily', 'speakeasy_daily_auto_update' );
+		}
+
+		// Hook the auto-update action.
+		add_action( 'speakeasy_daily_auto_update', array( $this, 'maybe_auto_update' ) );
+	}
+
+	/**
+	 * Maybe perform automatic update
+	 *
+	 * Checks for updates and installs if available.
+	 * Runs daily via WordPress cron.
+	 *
+	 * @since 1.2.0
+	 * @return void
+	 */
+	public function maybe_auto_update() {
+		error_log( 'WP Speakeasy: Running daily auto-update check' );
+
+		// Check if updates are available.
+		if ( ! $this->is_update_available() ) {
+			error_log( 'WP Speakeasy: No updates available during auto-update check' );
+			return;
+		}
+
+		// Perform the update.
+		$result = $this->update();
+
+		if ( is_wp_error( $result ) ) {
+			error_log( 'WP Speakeasy: Auto-update failed - ' . $result->get_error_message() );
+
+			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+				Speakeasy_Error_Logger::instance()->log_error(
+					'error',
+					'Auto-update failed: ' . $result->get_error_message(),
+					__FILE__,
+					__LINE__,
+					array( 'component' => 'Simple Updater' )
+				);
+			}
+		} else {
+			error_log( 'WP Speakeasy: Auto-update completed successfully - ' . $result['message'] );
+		}
+	}
 
 	/**
 	 * Get latest version info from GitHub
