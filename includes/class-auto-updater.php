@@ -264,6 +264,28 @@ class Speakeasy_Auto_Updater {
 		// Perform the update.
 		$result = $upgrader->upgrade( $plugin_file );
 
+		// Check upgrader skin for errors.
+		if ( ! empty( $skin->errors ) && is_wp_error( $skin->errors ) ) {
+			$error_msg = 'Plugin update failed: ' . $skin->errors->get_error_message();
+			error_log( 'WP Speakeasy: ' . $error_msg );
+
+			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
+				Speakeasy_Error_Logger::instance()->log_error(
+					'error',
+					$error_msg,
+					__FILE__,
+					__LINE__,
+					array(
+						'component'      => 'Auto Updater',
+						'error_code'     => $skin->errors->get_error_code(),
+						'latest_version' => $update_info->version,
+					)
+				);
+			}
+
+			return $skin->errors;
+		}
+
 		if ( is_wp_error( $result ) ) {
 			$error_msg = 'Plugin update failed: ' . $result->get_error_message();
 			error_log( 'WP Speakeasy: ' . $error_msg );
@@ -285,7 +307,7 @@ class Speakeasy_Auto_Updater {
 			return $result;
 		}
 
-		if ( false === $result ) {
+		if ( false === $result || null === $result ) {
 			$error_msg = 'Plugin update failed for unknown reason.';
 			error_log( 'WP Speakeasy: ' . $error_msg );
 

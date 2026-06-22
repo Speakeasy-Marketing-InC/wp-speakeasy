@@ -3,7 +3,7 @@
  * Plugin Name: WP Speakeasy
  * Plugin URI: https://github.com/speakeasy/wp-speakeasy
  * Description: WordPress automation toolkit for REST API enhancements. Enables Application Passwords, exposes custom meta fields to REST API, and provides auto-update capability.
- * Version: 1.1.0
+ * Version: 1.0.2
  * Author: Speakeasy
  * Author URI: https://speakeasy.com
  * License: GPL-2.0+
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants.
-define( 'SPEAKEASY_VERSION', '1.1.0' );
+define( 'SPEAKEASY_VERSION', '1.0.2' );
 define( 'SPEAKEASY_PATH', plugin_dir_path( __FILE__ ) );
 define( 'SPEAKEASY_URL', plugin_dir_url( __FILE__ ) );
 

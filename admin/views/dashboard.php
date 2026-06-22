@@ -461,6 +461,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 					nonce: updateNonce
 				},
 				success: function(response) {
+					// Debug: Log full response to console
+					console.log('Update Response:', response);
+
 					if (response.success) {
 						$('#update-message')
 							.removeClass('info error')
@@ -473,20 +476,37 @@ if ( ! defined( 'ABSPATH' ) ) {
 							location.reload();
 						}, 2000);
 					} else {
+						// Show detailed error with error code if available
+						var errorMsg = response.data.message || 'Unknown error';
+						if (response.data.error_code) {
+							errorMsg += ' (Code: ' + response.data.error_code + ')';
+						}
+
 						$('#update-message')
 							.removeClass('info success')
 							.addClass('error')
-							.html('<strong>Update Failed:</strong> ' + (response.data.message || 'Unknown error'))
+							.html('<strong>Update Failed:</strong> ' + errorMsg)
 							.show();
 						$btn.prop('disabled', false).text('Update Now');
 						$('#check-update-btn').prop('disabled', false);
+
+						// Debug: Log to console for troubleshooting
+						console.error('Update failed:', response.data);
 					}
 				},
-				error: function() {
+				error: function(jqXHR, textStatus, errorThrown) {
+					// Debug: Log AJAX error details
+					console.error('AJAX Error:', {
+						status: jqXHR.status,
+						statusText: textStatus,
+						error: errorThrown,
+						response: jqXHR.responseText
+					});
+
 					$('#update-message')
 						.removeClass('info success')
 						.addClass('error')
-						.text('Update request failed. Please check error logs.')
+						.text('Update request failed. Check browser console (F12) for details.')
 						.show();
 					$btn.prop('disabled', false).text('Update Now');
 					$('#check-update-btn').prop('disabled', false);
