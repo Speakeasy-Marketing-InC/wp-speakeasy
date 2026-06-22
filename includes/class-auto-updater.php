@@ -264,6 +264,16 @@ class Speakeasy_Auto_Updater {
 		// Perform the update.
 		$result = $upgrader->upgrade( $plugin_file );
 
+		// Debug: Log the result type and value for troubleshooting.
+		error_log(
+			sprintf(
+				'WP Speakeasy: Upgrader result - Type: %s, Value: %s, Is WP_Error: %s',
+				gettype( $result ),
+				is_bool( $result ) ? ( $result ? 'true' : 'false' ) : var_export( $result, true ),
+				is_wp_error( $result ) ? 'yes' : 'no'
+			)
+		);
+
 		// Check upgrader skin for errors.
 		if ( ! empty( $skin->errors ) && is_wp_error( $skin->errors ) ) {
 			$error_msg = 'Plugin update failed: ' . $skin->errors->get_error_message();
@@ -308,7 +318,17 @@ class Speakeasy_Auto_Updater {
 		}
 
 		if ( false === $result || null === $result ) {
-			$error_msg = 'Plugin update failed for unknown reason.';
+			// Upgrader returned false/null - check if it's a permissions issue.
+			$error_msg = 'Plugin update failed: WordPress upgrader could not complete the update. ';
+
+			// Check if plugin directory is writable.
+			$plugin_dir = WP_PLUGIN_DIR . '/wp-speakeasy';
+			if ( ! is_writable( $plugin_dir ) ) {
+				$error_msg .= 'Plugin directory is not writable. Check file permissions.';
+			} else {
+				$error_msg .= 'This may be due to filesystem restrictions, download failure, or insufficient disk space.';
+			}
+
 			error_log( 'WP Speakeasy: ' . $error_msg );
 
 			if ( class_exists( 'Speakeasy_Error_Logger' ) ) {
@@ -318,8 +338,11 @@ class Speakeasy_Auto_Updater {
 					__FILE__,
 					__LINE__,
 					array(
-						'component'      => 'Auto Updater',
-						'latest_version' => $update_info->version,
+						'component'        => 'Auto Updater',
+						'latest_version'   => $update_info->version,
+						'plugin_dir'       => $plugin_dir,
+						'plugin_writable'  => is_writable( $plugin_dir ),
+						'upgrader_result'  => gettype( $result ),
 					)
 				);
 			}
