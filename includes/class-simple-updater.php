@@ -70,6 +70,16 @@ class Speakeasy_Simple_Updater {
 			'published_at' => isset( $release['published_at'] ) ? $release['published_at'] : '',
 		);
 
+		// Log version check result.
+		error_log(
+			sprintf(
+				'WP Speakeasy: Version check - Current: %s, Latest: %s, Download: %s',
+				SPEAKEASY_VERSION,
+				$version_info['version'],
+				$version_info['download_url']
+			)
+		);
+
 		// Cache for 12 hours.
 		set_transient( 'speakeasy_latest_version_info', $version_info, 12 * HOUR_IN_SECONDS );
 
@@ -121,6 +131,16 @@ class Speakeasy_Simple_Updater {
 		$download_url = $info['download_url'];
 		$new_version  = $info['version'];
 
+		// Log update attempt with source information.
+		error_log(
+			sprintf(
+				'WP Speakeasy: Starting update - Current: %s, Target: %s, Download URL: %s',
+				SPEAKEASY_VERSION,
+				$new_version,
+				$download_url
+			)
+		);
+
 		// Try WP-CLI first (most reliable).
 		$result = $this->update_via_wpcli( $download_url, $new_version );
 
@@ -163,16 +183,17 @@ class Speakeasy_Simple_Updater {
 		exec( $command, $output, $return_code );
 
 		if ( 0 === $return_code ) {
-			$this->log_success( 'Updated via WP-CLI to version ' . $new_version );
+			$this->log_success( 'Updated via WP-CLI to version ' . $new_version . ' from ' . $download_url );
 
 			// Clear cache.
 			delete_transient( 'speakeasy_latest_version_info' );
 
 			return array(
-				'success' => true,
-				'message' => 'Plugin updated successfully via WP-CLI',
-				'version' => $new_version,
-				'method'  => 'wpcli',
+				'success'      => true,
+				'message'      => 'Plugin updated successfully via WP-CLI to version ' . $new_version,
+				'version'      => $new_version,
+				'method'       => 'wpcli',
+				'download_url' => $download_url,
 			);
 		}
 
@@ -271,13 +292,14 @@ class Speakeasy_Simple_Updater {
 		// Clear cache.
 		delete_transient( 'speakeasy_latest_version_info' );
 
-		$this->log_success( 'Updated via direct download to version ' . $new_version );
+		$this->log_success( 'Updated via direct download to version ' . $new_version . ' from ' . $download_url );
 
 		return array(
-			'success' => true,
-			'message' => 'Plugin updated successfully via direct download',
-			'version' => $new_version,
-			'method'  => 'direct',
+			'success'      => true,
+			'message'      => 'Plugin updated successfully via direct download to version ' . $new_version,
+			'version'      => $new_version,
+			'method'       => 'direct',
+			'download_url' => $download_url,
 		);
 	}
 

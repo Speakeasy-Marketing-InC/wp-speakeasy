@@ -144,8 +144,10 @@ wp-speakeasy/
 ├── includes/                  # Core classes
 │   ├── interface-module.php
 │   ├── class-module-manager.php
-│   ├── class-auto-updater.php
-│   └── class-api-reporter.php
+│   ├── class-simple-updater.php
+│   ├── class-error-logger.php
+│   ├── class-api-reporter.php
+│   └── class-rest-api.php
 ├── modules/                   # Feature modules
 │   ├── app-passwords/
 │   └── lap-meta/
