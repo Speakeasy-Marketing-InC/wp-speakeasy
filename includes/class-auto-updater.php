@@ -239,6 +239,16 @@ class Speakeasy_Auto_Updater {
 			return new WP_Error( 'update_check_failed', $error_msg );
 		}
 
+		// Log update information retrieved from GitHub.
+		error_log(
+			sprintf(
+				'WP Speakeasy: Update check - Current: %s, Available: %s, Download URL: %s',
+				SPEAKEASY_VERSION,
+				$update_info->version,
+				isset( $update_info->download_url ) ? $update_info->download_url : 'N/A'
+			)
+		);
+
 		// Check if update is available.
 		if ( ! $update_info || version_compare( $update_info->version, SPEAKEASY_VERSION, '<=' ) ) {
 			return array(
@@ -260,6 +270,16 @@ class Speakeasy_Auto_Updater {
 
 		// Get plugin file path.
 		$plugin_file = plugin_basename( SPEAKEASY_PATH . 'wp-speakeasy.php' );
+
+		// Log the update attempt with source information.
+		error_log(
+			sprintf(
+				'WP Speakeasy: Starting update from %s to %s. Source: %s',
+				SPEAKEASY_VERSION,
+				$update_info->version,
+				isset( $update_info->download_url ) ? $update_info->download_url : 'WordPress.org or GitHub'
+			)
+		);
 
 		// Perform the update.
 		$result = $upgrader->upgrade( $plugin_file );
@@ -351,7 +371,12 @@ class Speakeasy_Auto_Updater {
 		}
 
 		// Update successful.
-		$success_msg = 'Plugin successfully updated to version ' . $update_info->version;
+		$success_msg = sprintf(
+			'Plugin successfully updated from %s to %s. Source: %s',
+			SPEAKEASY_VERSION,
+			$update_info->version,
+			isset( $update_info->download_url ) ? $update_info->download_url : 'GitHub'
+		);
 		error_log( 'WP Speakeasy: ' . $success_msg );
 
 		// Send success report to API.
@@ -362,6 +387,7 @@ class Speakeasy_Auto_Updater {
 			'message'          => $success_msg,
 			'previous_version' => SPEAKEASY_VERSION,
 			'new_version'      => $update_info->version,
+			'download_url'     => isset( $update_info->download_url ) ? $update_info->download_url : null,
 		);
 	}
 
