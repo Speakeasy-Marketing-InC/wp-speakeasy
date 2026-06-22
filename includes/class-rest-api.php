@@ -15,6 +15,8 @@
  * Handles REST API endpoints for the WP Speakeasy plugin.
  * Provides secure, API-key authenticated endpoints for:
  * - Creating Application Passwords programmatically
+ * - Triggering plugin updates remotely
+ * - Checking for available updates
  *
  * Authentication:
  * - Uses plugin API key (stored in speakeasy_api_key option)
@@ -85,6 +87,26 @@ class Speakeasy_REST_API {
 						},
 					),
 				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/update',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'trigger_update' ),
+				'permission_callback' => array( $this, 'verify_api_key' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/update/check',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'check_for_update' ),
+				'permission_callback' => array( $this, 'verify_api_key' ),
 			)
 		);
 	}
@@ -316,6 +338,95 @@ class Speakeasy_REST_API {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Trigger plugin update
+	 *
+	 * REST API endpoint handler for triggering plugin updates.
+	 *
+	 * @since 1.2.0
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error Response object or error.
+	 */
+	public function trigger_update( $request ) {
+		if ( ! class_exists( 'Speakeasy_Simple_Updater' ) ) {
+			return new WP_Error(
+				'updater_unavailable',
+				'Simple Updater not available',
+				array( 'status' => 503 )
+			);
+		}
+
+		$updater = new Speakeasy_Simple_Updater();
+		$result  = $updater->update();
+
+		if ( is_wp_error( $result ) ) {
+			$this->log_error( 'error', 'Update failed: ' . $result->get_error_message(), $request );
+
+			return new WP_Error(
+				'update_failed',
+				$result->get_error_message(),
+				array( 'status' => 500 )
+			);
+		}
+
+		error_log( 'WP Speakeasy: Update triggered via API - ' . $result['message'] );
+
+		return rest_ensure_response(
+			array(
+				'success'      => $result['success'],
+				'message'      => $result['message'],
+				'version'      => $result['version'],
+				'method'       => isset( $result['method'] ) ? $result['method'] : null,
+				'download_url' => isset( $result['download_url'] ) ? $result['download_url'] : null,
+			)
+		);
+	}
+
+	/**
+	 * Check for plugin updates
+	 *
+	 * REST API endpoint handler for checking if updates are available.
+	 *
+	 * @since 1.2.0
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error Response object or error.
+	 */
+	public function check_for_update( $request ) {
+		if ( ! class_exists( 'Speakeasy_Simple_Updater' ) ) {
+			return new WP_Error(
+				'updater_unavailable',
+				'Simple Updater not available',
+				array( 'status' => 503 )
+			);
+		}
+
+		$updater = new Speakeasy_Simple_Updater();
+		$info    = $updater->check_for_updates();
+
+		if ( is_wp_error( $info ) ) {
+			$this->log_error( 'error', 'Update check failed: ' . $info->get_error_message(), $request );
+
+			return new WP_Error(
+				'check_failed',
+				$info->get_error_message(),
+				array( 'status' => 500 )
+			);
+		}
+
+		$update_available = version_compare( $info['version'], SPEAKEASY_VERSION, '>' );
+
+		return rest_ensure_response(
+			array(
+				'current_version'  => SPEAKEASY_VERSION,
+				'latest_version'   => $info['version'],
+				'update_available' => $update_available,
+				'download_url'     => $info['download_url'],
+				'changelog'        => $info['changelog'],
+				'published_at'     => $info['published_at'],
+			)
+		);
 	}
 
 	/**
