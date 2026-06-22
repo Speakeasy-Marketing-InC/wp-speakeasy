@@ -53,8 +53,8 @@ if ( file_exists( SPEAKEASY_PATH . 'includes/class-error-logger.php' ) ) {
 	require_once SPEAKEASY_PATH . 'includes/class-error-logger.php';
 }
 
-if ( file_exists( SPEAKEASY_PATH . 'includes/class-auto-updater.php' ) ) {
-	require_once SPEAKEASY_PATH . 'includes/class-auto-updater.php';
+if ( file_exists( SPEAKEASY_PATH . 'includes/class-simple-updater.php' ) ) {
+	require_once SPEAKEASY_PATH . 'includes/class-simple-updater.php';
 }
 
 if ( file_exists( SPEAKEASY_PATH . 'includes/class-api-reporter.php' ) ) {
@@ -104,11 +104,6 @@ function speakeasy_automation_init() {
 
 	// Initialize enabled modules.
 	$manager->init_modules();
-
-	// Initialize auto-updater if available.
-	if ( class_exists( 'Speakeasy_Auto_Updater' ) ) {
-		$GLOBALS['speakeasy_auto_updater'] = new Speakeasy_Auto_Updater();
-	}
 
 	// Initialize API reporter if available.
 	if ( class_exists( 'Speakeasy_API_Reporter' ) ) {

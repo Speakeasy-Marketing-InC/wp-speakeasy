@@ -135,7 +135,7 @@ class Speakeasy_Admin_Page {
 	/**
 	 * Get update information
 	 *
-	 * Checks GitHub for the latest version if GitHub repo is configured.
+	 * Checks GitHub for the latest version using Simple Updater.
 	 *
 	 * @since 1.0.0
 	 * @return array Update information.
@@ -154,39 +154,17 @@ class Speakeasy_Admin_Page {
 			return $update_info;
 		}
 
-		// Check transient cache first (cache for 12 hours).
-		$cached = get_transient( 'speakeasy_latest_version' );
-		if ( false !== $cached ) {
-			$update_info['latest_version']   = $cached;
-			$update_info['update_available'] = version_compare( $cached, SPEAKEASY_VERSION, '>' );
+		// Check using Simple Updater.
+		if ( ! class_exists( 'Speakeasy_Simple_Updater' ) ) {
 			return $update_info;
 		}
 
-		// Fetch latest release from GitHub API.
-		$github_repo = SPEAKEASY_GITHUB_REPO;
-		$api_url     = "https://api.github.com/repos/{$github_repo}/releases/latest";
+		$updater = new Speakeasy_Simple_Updater();
+		$info    = $updater->check_for_updates();
 
-		$response = wp_remote_get(
-			$api_url,
-			array(
-				'timeout' => 10,
-				'headers' => array(
-					'Accept' => 'application/vnd.github.v3+json',
-				),
-			)
-		);
-
-		if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
-			$body    = wp_remote_retrieve_body( $response );
-			$release = json_decode( $body, true );
-
-			if ( isset( $release['tag_name'] ) ) {
-				$latest_version = ltrim( $release['tag_name'], 'v' );
-				set_transient( 'speakeasy_latest_version', $latest_version, 12 * HOUR_IN_SECONDS );
-
-				$update_info['latest_version']   = $latest_version;
-				$update_info['update_available'] = version_compare( $latest_version, SPEAKEASY_VERSION, '>' );
-			}
+		if ( ! is_wp_error( $info ) && isset( $info['version'] ) ) {
+			$update_info['latest_version']   = $info['version'];
+			$update_info['update_available'] = version_compare( $info['version'], SPEAKEASY_VERSION, '>' );
 		}
 
 		return $update_info;
@@ -206,7 +184,7 @@ class Speakeasy_Admin_Page {
 		}
 
 		// Clear cache and check for updates.
-		delete_transient( 'speakeasy_latest_version' );
+		delete_transient( 'speakeasy_latest_version_info' );
 		$update_info = $this->get_update_info();
 
 		wp_send_json_success( $update_info );
@@ -214,6 +192,8 @@ class Speakeasy_Admin_Page {
 
 	/**
 	 * AJAX handler for triggering manual update
+	 *
+	 * Uses Simple Updater (WP-CLI or direct download).
 	 *
 	 * @since 1.0.0
 	 * @return void
@@ -225,19 +205,15 @@ class Speakeasy_Admin_Page {
 			wp_send_json_error( array( 'message' => 'Insufficient permissions' ) );
 		}
 
-		if ( ! class_exists( 'Speakeasy_Auto_Updater' ) ) {
-			wp_send_json_error( array( 'message' => 'Auto-updater class not available. Run composer install.' ) );
+		if ( ! class_exists( 'Speakeasy_Simple_Updater' ) ) {
+			wp_send_json_error( array( 'message' => 'Updater class not available' ) );
 		}
 
-		// Get the auto-updater instance.
-		if ( ! isset( $GLOBALS['speakeasy_auto_updater'] ) || ! $GLOBALS['speakeasy_auto_updater'] ) {
-			wp_send_json_error( array( 'message' => 'Auto-updater not initialized' ) );
-		}
+		// Create updater instance.
+		$updater = new Speakeasy_Simple_Updater();
 
-		$updater = $GLOBALS['speakeasy_auto_updater'];
-
-		// Trigger manual update.
-		$result = $updater->trigger_manual_update();
+		// Trigger update.
+		$result = $updater->update();
 
 		// Check result.
 		if ( is_wp_error( $result ) ) {
@@ -249,28 +225,14 @@ class Speakeasy_Admin_Page {
 			);
 		}
 
-		// Check if update was performed.
-		if ( isset( $result['updated'] ) && true === $result['updated'] ) {
-			// Clear cache after successful update.
-			delete_transient( 'speakeasy_latest_version' );
-
-			wp_send_json_success(
-				array(
-					'message'          => $result['message'],
-					'previous_version' => $result['previous_version'],
-					'new_version'      => $result['new_version'],
-				)
-			);
-		} else {
-			// No update available or update not needed.
-			wp_send_json_success(
-				array(
-					'message'         => $result['message'],
-					'current_version' => $result['current_version'],
-					'latest_version'  => $result['latest_version'],
-				)
-			);
-		}
+		// Success!
+		wp_send_json_success(
+			array(
+				'message' => $result['message'],
+				'version' => $result['version'],
+				'method'  => isset( $result['method'] ) ? $result['method'] : 'unknown',
+			)
+		);
 	}
 
 	/**
