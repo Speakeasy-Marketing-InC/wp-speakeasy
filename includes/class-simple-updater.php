@@ -249,14 +249,18 @@ class Speakeasy_Simple_Updater {
 	 * @return array|WP_Error Update result.
 	 */
 	private function update_via_wpcli( $download_url, $new_version ) {
+		error_log( 'WP Speakeasy: Attempting update via WP-CLI' );
+
 		// Check if exec() is available.
 		if ( ! function_exists( 'exec' ) ) {
+			error_log( 'WP Speakeasy: exec() function is disabled, falling back to direct download' );
 			return new WP_Error( 'exec_disabled', 'exec() function is disabled' );
 		}
 
 		// Check if WP-CLI is available.
 		exec( 'which wp 2>&1', $output, $return_code );
 		if ( 0 !== $return_code ) {
+			error_log( 'WP Speakeasy: WP-CLI not found on server, falling back to direct download' );
 			return new WP_Error( 'wpcli_not_found', 'WP-CLI not found on server' );
 		}
 
@@ -267,8 +271,12 @@ class Speakeasy_Simple_Updater {
 			escapeshellarg( ABSPATH )
 		);
 
+		error_log( 'WP Speakeasy: Executing WP-CLI command: ' . $command );
+
 		// Execute command.
 		exec( $command, $output, $return_code );
+
+		error_log( 'WP Speakeasy: WP-CLI exit code: ' . $return_code . ', Output: ' . implode( "\n", $output ) );
 
 		if ( 0 === $return_code ) {
 			$this->log_success( 'Updated via WP-CLI to version ' . $new_version . ' from ' . $download_url );
@@ -305,6 +313,15 @@ class Speakeasy_Simple_Updater {
 	private function update_via_direct_download( $download_url, $new_version ) {
 		// Require WordPress filesystem functions.
 		require_once ABSPATH . 'wp-admin/includes/file.php';
+
+		// Log download attempt.
+		error_log(
+			sprintf(
+				'WP Speakeasy: Attempting direct download from %s (version %s)',
+				$download_url,
+				$new_version
+			)
+		);
 
 		// Download file.
 		$temp_file = download_url( $download_url, 300 );
