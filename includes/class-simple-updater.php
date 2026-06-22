@@ -97,12 +97,6 @@ class Speakeasy_Simple_Updater {
 			return new WP_Error( 'no_repo', 'GitHub repository not configured' );
 		}
 
-		// Check cache first (12 hours).
-		$cached = get_transient( 'speakeasy_latest_version_info' );
-		if ( false !== $cached ) {
-			return $cached;
-		}
-
 		// Fetch from GitHub API.
 		$api_url  = 'https://api.github.com/repos/' . SPEAKEASY_GITHUB_REPO . '/releases/latest';
 		$response = wp_remote_get(
