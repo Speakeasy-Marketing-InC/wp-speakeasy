@@ -390,15 +390,22 @@ class Speakeasy_REST_API {
 
 		error_log( 'WP Speakeasy: Update triggered via API - ' . $result['message'] );
 
+		// Determine current version (before update) and new version (after update).
+		// Note: SPEAKEASY_VERSION constant won't reflect new version until plugin reloads.
+		$was_updated = isset( $result['method'] );
+		$version_before = SPEAKEASY_VERSION;
+		$version_after = $was_updated ? $result['version'] : SPEAKEASY_VERSION;
+
 		// Return unified response with both check and update info.
 		return rest_ensure_response(
 			array(
 				'success'          => $result['success'],
 				'message'          => $result['message'],
-				'current_version'  => SPEAKEASY_VERSION,
+				'current_version'  => $version_after,
+				'previous_version' => $was_updated ? $version_before : null,
 				'latest_version'   => $info['version'],
-				'update_available' => $update_available,
-				'updated'          => isset( $result['method'] ),
+				'update_available' => version_compare( $info['version'], $version_after, '>' ),
+				'updated'          => $was_updated,
 				'method'           => isset( $result['method'] ) ? $result['method'] : null,
 				'download_url'     => isset( $result['download_url'] ) ? $result['download_url'] : $info['download_url'],
 			)
