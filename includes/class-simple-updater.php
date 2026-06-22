@@ -63,9 +63,29 @@ class Speakeasy_Simple_Updater {
 			return new WP_Error( 'invalid_response', 'No tag_name in GitHub release' );
 		}
 
+		// Find the wp-speakeasy.zip release asset (production build).
+		// Never use zipball - it contains source code without Composer dependencies.
+		$download_url = null;
+
+		if ( isset( $release['assets'] ) && is_array( $release['assets'] ) ) {
+			foreach ( $release['assets'] as $asset ) {
+				if ( isset( $asset['name'] ) && 'wp-speakeasy.zip' === $asset['name'] ) {
+					$download_url = $asset['browser_download_url'];
+					break;
+				}
+			}
+		}
+
+		if ( ! $download_url ) {
+			return new WP_Error(
+				'no_release_asset',
+				'No wp-speakeasy.zip asset found in GitHub release. The release may not have completed building yet.'
+			);
+		}
+
 		$version_info = array(
 			'version'      => ltrim( $release['tag_name'], 'v' ),
-			'download_url' => $release['zipball_url'],
+			'download_url' => $download_url,
 			'changelog'    => isset( $release['body'] ) ? $release['body'] : '',
 			'published_at' => isset( $release['published_at'] ) ? $release['published_at'] : '',
 		);
