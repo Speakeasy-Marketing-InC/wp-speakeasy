@@ -212,6 +212,11 @@ Next steps:
 
 ---
 
+## SESSION 4 — 2026-06-27 — LAP Meta Fields REST Endpoint — open
+Branch: main
+
+---
+
 ## NEXT SESSION START POINT
 
 WP Speakeasy plugin v1.0.0 is complete and committed.
