@@ -99,6 +99,18 @@ class Speakeasy_LAP_Meta_Module implements Speakeasy_Module {
 	 */
 	public function init(): void {
 		add_action( 'rest_api_init', array( $this, 'register_meta_fields' ) );
+		add_action( 'rest_api_init', array( $this, 'register_endpoint' ) );
+	}
+
+	/**
+	 * Register LAP meta REST endpoint
+	 *
+	 * @since 1.3.0
+	 * @return void
+	 */
+	public function register_endpoint(): void {
+		$endpoint = new Speakeasy_LAP_Meta_Endpoint();
+		$endpoint->register_routes();
 	}
 
 	/**

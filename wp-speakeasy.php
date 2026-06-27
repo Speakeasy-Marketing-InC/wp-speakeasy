@@ -47,6 +47,7 @@ require_once SPEAKEASY_PATH . 'includes/class-module-manager.php';
 // Load modules.
 require_once SPEAKEASY_PATH . 'modules/app-passwords/class-app-passwords-module.php';
 require_once SPEAKEASY_PATH . 'modules/lap-meta/class-lap-meta-module.php';
+require_once SPEAKEASY_PATH . 'modules/lap-meta/class-speakeasy-lap-meta-endpoint.php';
 
 // Load optional components if they exist.
 if ( file_exists( SPEAKEASY_PATH . 'includes/class-error-logger.php' ) ) {
