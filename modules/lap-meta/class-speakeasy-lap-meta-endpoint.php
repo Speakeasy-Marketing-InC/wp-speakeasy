@@ -232,7 +232,12 @@ class Speakeasy_LAP_Meta_Endpoint {
 			);
 		}
 
-		$body = $request->get_body_params();
+		// get_json_params() handles Content-Type: application/json bodies.
+		// Fall back to get_body_params() for form-encoded requests.
+		$body = $request->get_json_params();
+		if ( empty( $body ) ) {
+			$body = $request->get_body_params();
+		}
 
 		// Reject unknown keys before writing anything.
 		foreach ( array_keys( $body ) as $key ) {
