@@ -225,6 +225,302 @@ if ( ! is_wp_error( $response ) ) {
 }
 ```
 
+---
+
+## LAP Meta Fields
+
+Read and write the custom meta fields on Local Area Pages (pages using the `localareapage.php` template). The endpoint talks directly to the Meta Box plugin API so it handles the internal storage format of group/clone fields correctly — you send and receive clean JSON without needing to know how Meta Box serialises data internally.
+
+### How it fits together
+
+```
+Your request
+    │
+    ▼
+speakeasy/v1/lap-meta/{page_id}  ← WP REST API route
+    │
+    ├── validates API key (X-Speakeasy-API-Key header)
+    ├── confirms page exists and uses localareapage.php template
+    ├── confirms Meta Box plugin is active
+    │
+    ├── GET  → rwmb_meta()     → returns current field values
+    └── POST → rwmb_set_meta() → writes only the fields you send
+```
+
+The fields are defined by a Meta Box generator registration (prefix `spk_`) on the client's theme. This plugin does not own or create those fields — it exposes them over a secure API.
+
+---
+
+### GET — Read all field values
+
+**Endpoint:** `GET /wp-json/speakeasy/v1/lap-meta/{page_id}`
+
+**Authentication:** Plugin API key via `X-Speakeasy-API-Key` header
+
+#### Request
+
+```http
+GET /wp-json/speakeasy/v1/lap-meta/42 HTTP/1.1
+Host: yoursite.com
+X-Speakeasy-API-Key: your_plugin_api_key_here
+```
+
+#### Success Response (200 OK)
+
+```json
+{
+  "page_id": 42,
+  "fields": {
+    "spk_main_heading": "Welcome to Austin",
+    "spk_upload_video_image": [123],
+    "spk_hide_video_image": false,
+    "spk_video_section_left_text": "<p>Some rich text...</p>",
+    "spk_video_code": "dQw4w9WgXcQ",
+    "spk_select_video": "Youtube",
+    "spk_gridbox_repeater": [
+      {
+        "spk_heading": "Why Austin",
+        "spk_image": [456],
+        "spk_content": "<p>Body copy...</p>"
+      }
+    ],
+    "spk_upload_call_to_action_phone_image": [789],
+    "spk_call_to_action_box_text": "Call us today",
+    "spk_add_phone_number": [
+      { "spk_call_to_action_phone_number": "512-555-0100" }
+    ],
+    "spk_show_map_section": true,
+    "spk_cta_bg_color": "#1a73e8",
+    "spk_cta_bg_hvr_color": "#1557b0",
+    "spk_heading_hide": false,
+    "spk_hide_banner_image": false
+  }
+}
+```
+
+Image fields (`spk_upload_video_image`, `spk_upload_call_to_action_phone_image`, and image sub-fields inside repeaters) return arrays of WordPress attachment IDs.
+
+---
+
+### POST — Update fields (partial)
+
+Only the fields you include in the request body are written. Fields you omit are left exactly as they are.
+
+**Endpoint:** `POST /wp-json/speakeasy/v1/lap-meta/{page_id}`
+
+**Authentication:** Plugin API key via `X-Speakeasy-API-Key` header
+
+#### Request
+
+```http
+POST /wp-json/speakeasy/v1/lap-meta/42 HTTP/1.1
+Host: yoursite.com
+X-Speakeasy-API-Key: your_plugin_api_key_here
+Content-Type: application/json
+
+{
+  "spk_main_heading": "Welcome to Austin",
+  "spk_cta_bg_color": "#1a73e8"
+}
+```
+
+#### Success Response (200 OK)
+
+```json
+{
+  "page_id": 42,
+  "updated": ["spk_main_heading", "spk_cta_bg_color"]
+}
+```
+
+---
+
+### Field reference
+
+All fields use the `spk_` prefix. The table below shows the field key, the value type you send/receive over the API, and what it controls on the page.
+
+| Field | Value type | Description |
+|---|---|---|
+| `spk_main_heading` | string | Main heading text |
+| `spk_upload_video_image` | array of integers | Attachment IDs for the video section background image |
+| `spk_hide_video_image` | boolean | When `true`, hides the video and background image entirely |
+| `spk_video_section_left_text` | string (HTML) | Rich text displayed to the left of the video |
+| `spk_video_code` | string | YouTube or Vimeo video ID |
+| `spk_select_video` | string enum | Video platform — must be one of: `Youtube`, `Vimeo`, `Image` |
+| `spk_gridbox_repeater` | array of objects | Two-column grid content blocks (see below) |
+| `spk_upload_call_to_action_phone_image` | array of integers | Attachment IDs for the CTA phone icon image |
+| `spk_call_to_action_box_text` | string | Call-to-action box label text |
+| `spk_add_phone_number` | array of objects | Phone number entries (see below) |
+| `spk_show_map_section` | boolean | When `true`, renders the map section |
+| `spk_cta_bg_color` | string | CTA button background colour (any CSS colour value) |
+| `spk_cta_bg_hvr_color` | string | CTA button hover background colour |
+| `spk_heading_hide` | boolean | When `true`, hides the main heading |
+| `spk_hide_banner_image` | boolean | When `true`, hides the default banner image |
+
+#### spk_gridbox_repeater items
+
+Each item in the array is an object with:
+
+| Property | Type | Description |
+|---|---|---|
+| `spk_heading` | string | Block heading text |
+| `spk_image` | array of integers | Attachment IDs for the block image |
+| `spk_content` | string (HTML) | Block body copy (rich text) |
+
+#### spk_add_phone_number items
+
+Each item in the array is an object with:
+
+| Property | Type | Description |
+|---|---|---|
+| `spk_call_to_action_phone_number` | string | Phone number to display |
+
+---
+
+### Error responses
+
+All errors follow the standard WordPress REST API error envelope.
+
+| Status | Code | Cause |
+|---|---|---|
+| 401 | `missing_api_key` | `X-Speakeasy-API-Key` header not sent |
+| 401 | `invalid_api_key` | Key sent but does not match stored key |
+| 500 | `api_key_not_configured` | Plugin API key has not been set on this site |
+| 404 | `page_not_found` | No page exists with the given ID |
+| 400 | `not_lap_page` | Page exists but does not use the `localareapage.php` template |
+| 400 | `unknown_field` | POST body contains a key not in the allowed field list |
+| 400 | `invalid_field_value` | `spk_select_video` value is not `Youtube`, `Vimeo`, or `Image` |
+| 503 | `metabox_unavailable` | Meta Box plugin is not active on this site |
+
+Example error response:
+
+```json
+{
+  "code": "not_lap_page",
+  "message": "This page does not use the localareapage.php template",
+  "data": { "status": 400 }
+}
+```
+
+---
+
+### Examples
+
+**cURL — read fields**
+```bash
+curl https://example.com/wp-json/speakeasy/v1/lap-meta/42 \
+  -H "X-Speakeasy-API-Key: spk_1234567890abcdef"
+```
+
+**cURL — update two text fields**
+```bash
+curl -X POST https://example.com/wp-json/speakeasy/v1/lap-meta/42 \
+  -H "X-Speakeasy-API-Key: spk_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "spk_main_heading": "Welcome to Austin",
+    "spk_cta_bg_color": "#1a73e8"
+  }'
+```
+
+**cURL — update a repeater field**
+```bash
+curl -X POST https://example.com/wp-json/speakeasy/v1/lap-meta/42 \
+  -H "X-Speakeasy-API-Key: spk_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "spk_gridbox_repeater": [
+      {
+        "spk_heading": "Why Austin",
+        "spk_image": [456],
+        "spk_content": "<p>Austin is the capital of Texas.</p>"
+      },
+      {
+        "spk_heading": "Local Experts",
+        "spk_image": [457],
+        "spk_content": "<p>Our team has 20 years of local experience.</p>"
+      }
+    ]
+  }'
+```
+
+**JavaScript (Node.js)**
+```javascript
+const BASE = 'https://example.com/wp-json/speakeasy/v1';
+const KEY  = 'spk_1234567890abcdef';
+const PAGE = 42;
+
+// Read
+const get = await fetch(`${BASE}/lap-meta/${PAGE}`, {
+  headers: { 'X-Speakeasy-API-Key': KEY }
+});
+const { fields } = await get.json();
+console.log(fields.spk_main_heading);
+
+// Partial update
+const post = await fetch(`${BASE}/lap-meta/${PAGE}`, {
+  method: 'POST',
+  headers: {
+    'X-Speakeasy-API-Key': KEY,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    spk_main_heading: 'Welcome to Austin',
+    spk_show_map_section: true
+  })
+});
+const { updated } = await post.json();
+console.log('Updated:', updated);
+```
+
+**Python**
+```python
+import requests
+
+BASE = 'https://example.com/wp-json/speakeasy/v1'
+HEADERS = {
+    'X-Speakeasy-API-Key': 'spk_1234567890abcdef',
+    'Content-Type': 'application/json'
+}
+PAGE = 42
+
+# Read
+r = requests.get(f'{BASE}/lap-meta/{PAGE}', headers=HEADERS)
+fields = r.json()['fields']
+print(fields['spk_main_heading'])
+
+# Partial update
+r = requests.post(f'{BASE}/lap-meta/{PAGE}', json={
+    'spk_main_heading': 'Welcome to Austin',
+    'spk_show_map_section': True
+}, headers=HEADERS)
+print('Updated:', r.json()['updated'])
+```
+
+---
+
+### Prerequisites
+
+- Meta Box plugin must be **active** on the site
+- The page must use the **`localareapage.php`** page template
+- The plugin API key must be configured (Settings → WP Speakeasy)
+
+### Troubleshooting
+
+**503 metabox_unavailable**
+Meta Box is not active. Install and activate the Meta Box plugin on the site.
+
+**400 not_lap_page**
+The page ID is correct but the page is not using the `localareapage.php` template. Check the page's template setting in WordPress admin (Page Attributes → Template).
+
+**400 unknown_field**
+The POST body contains a field key that is not in the allowed list. Check for typos — all keys must start with `spk_`.
+
+**400 invalid_field_value**
+`spk_select_video` was set to a value other than `Youtube`, `Vimeo`, or `Image`. The value is case-sensitive.
+
+---
+
 ## Finding Your Plugin API Key
 
 1. Log in to WordPress admin
