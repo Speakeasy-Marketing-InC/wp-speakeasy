@@ -48,6 +48,7 @@ require_once SPEAKEASY_PATH . 'includes/class-module-manager.php';
 require_once SPEAKEASY_PATH . 'modules/app-passwords/class-app-passwords-module.php';
 require_once SPEAKEASY_PATH . 'modules/lap-meta/class-lap-meta-module.php';
 require_once SPEAKEASY_PATH . 'modules/lap-meta/class-speakeasy-lap-meta-endpoint.php';
+require_once SPEAKEASY_PATH . 'modules/seo-meta/class-speakeasy-seo-meta-endpoint.php';
 
 // Load optional components if they exist.
 if ( file_exists( SPEAKEASY_PATH . 'includes/class-error-logger.php' ) ) {
@@ -127,6 +128,23 @@ function speakeasy_automation_init() {
 	}
 }
 add_action( 'plugins_loaded', 'speakeasy_automation_init' );
+
+/**
+ * Register SEO Meta endpoint
+ *
+ * Registers the SEO Meta REST API endpoint for setting SEO title and description
+ * across all major SEO plugins (Yoast, RankMath, AIOSEO, SEOPress).
+ *
+ * @since 1.4.0
+ * @return void
+ */
+function speakeasy_register_seo_meta_endpoint() {
+	if ( class_exists( 'Speakeasy_SEO_Meta_Endpoint' ) ) {
+		$endpoint = new Speakeasy_SEO_Meta_Endpoint();
+		$endpoint->register_routes();
+	}
+}
+add_action( 'rest_api_init', 'speakeasy_register_seo_meta_endpoint' );
 
 /**
  * Plugin activation hook

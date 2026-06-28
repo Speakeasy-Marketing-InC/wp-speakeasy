@@ -521,6 +521,186 @@ The POST body contains a field key that is not in the allowed list. Check for ty
 
 ---
 
+## SEO Meta Fields
+
+Set SEO title and meta description for any WordPress page or post. This endpoint writes meta fields for all major SEO plugins (Yoast SEO, RankMath, AIOSEO, SEOPress) simultaneously, ensuring compatibility regardless of which plugin is active.
+
+### POST — Update SEO Meta
+
+**Endpoint:** `POST /wp-json/speakeasy/v1/seo-meta/{page_id}`
+
+**Authentication:** Plugin API key via `X-Speakeasy-API-Key` header
+
+#### Request
+
+```http
+POST /wp-json/speakeasy/v1/seo-meta/123 HTTP/1.1
+Host: yoursite.com
+X-Speakeasy-API-Key: your_plugin_api_key_here
+Content-Type: application/json
+
+{
+  "seo_title": "Best Coffee Shops in Austin | Local Guide 2026",
+  "seo_description": "Discover the top coffee shops in Austin, Texas. Expert reviews, locations, and insider tips from local coffee enthusiasts."
+}
+```
+
+#### Request Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| page_id | integer | Yes | WordPress page or post ID |
+| seo_title | string | No* | SEO title (sanitized automatically) |
+| seo_description | string | No* | SEO meta description (sanitized automatically) |
+
+*At least one of `seo_title` or `seo_description` is required.
+
+#### Success Response (200 OK)
+
+```json
+{
+  "page_id": 123,
+  "updated": ["seo_title", "seo_description"]
+}
+```
+
+#### SEO Plugins Supported
+
+This endpoint writes to meta keys for all four major SEO plugins:
+
+| Plugin | Title Meta Key | Description Meta Key |
+|--------|----------------|----------------------|
+| **Yoast SEO** | `_yoast_wpseo_title` | `_yoast_wpseo_metadesc` |
+| **RankMath** | `rank_math_title` | `rank_math_description` |
+| **AIOSEO** | `_aioseo_title` | `_aioseo_description` |
+| **SEOPress** | `_seopress_titles_title` | `_seopress_titles_desc` |
+
+**Note:** AIOSEO meta is stored as JSON objects internally. The endpoint handles this automatically.
+
+#### Error Responses
+
+| Status | Code | Cause |
+|--------|------|-------|
+| 401 | `missing_api_key` | `X-Speakeasy-API-Key` header not sent |
+| 401 | `invalid_api_key` | Key sent but does not match stored key |
+| 500 | `api_key_not_configured` | Plugin API key has not been set on this site |
+| 404 | `page_not_found` | No page or post exists with the given ID |
+| 400 | `missing_fields` | Neither `seo_title` nor `seo_description` provided |
+
+Example error response:
+
+```json
+{
+  "code": "page_not_found",
+  "message": "Page not found",
+  "data": { "status": 404 }
+}
+```
+
+#### Examples
+
+**cURL — Set both title and description**
+```bash
+curl -X POST https://example.com/wp-json/speakeasy/v1/seo-meta/123 \
+  -H "X-Speakeasy-API-Key: spk_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "seo_title": "Best Coffee Shops in Austin | Local Guide 2026",
+    "seo_description": "Discover the top coffee shops in Austin, Texas."
+  }'
+```
+
+**cURL — Update only title**
+```bash
+curl -X POST https://example.com/wp-json/speakeasy/v1/seo-meta/123 \
+  -H "X-Speakeasy-API-Key: spk_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{"seo_title": "Updated SEO Title"}'
+```
+
+**JavaScript (Node.js)**
+```javascript
+const response = await fetch('https://example.com/wp-json/speakeasy/v1/seo-meta/123', {
+  method: 'POST',
+  headers: {
+    'X-Speakeasy-API-Key': 'spk_1234567890abcdef',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    seo_title: 'Best Coffee Shops in Austin | Local Guide 2026',
+    seo_description: 'Discover the top coffee shops in Austin, Texas.'
+  })
+});
+
+const data = await response.json();
+console.log('Updated fields:', data.updated);
+```
+
+**Python**
+```python
+import requests
+
+url = 'https://example.com/wp-json/speakeasy/v1/seo-meta/123'
+headers = {
+    'X-Speakeasy-API-Key': 'spk_1234567890abcdef',
+    'Content-Type': 'application/json'
+}
+payload = {
+    'seo_title': 'Best Coffee Shops in Austin | Local Guide 2026',
+    'seo_description': 'Discover the top coffee shops in Austin, Texas.'
+}
+
+response = requests.post(url, json=payload, headers=headers)
+data = response.json()
+print(f"Updated fields: {data['updated']}")
+```
+
+**PHP**
+```php
+<?php
+$url = 'https://example.com/wp-json/speakeasy/v1/seo-meta/123';
+$api_key = 'spk_1234567890abcdef';
+
+$response = wp_remote_post(
+    $url,
+    array(
+        'body'    => wp_json_encode(
+            array(
+                'seo_title'       => 'Best Coffee Shops in Austin | Local Guide 2026',
+                'seo_description' => 'Discover the top coffee shops in Austin, Texas.',
+            )
+        ),
+        'headers' => array(
+            'X-Speakeasy-API-Key' => $api_key,
+            'Content-Type'        => 'application/json',
+        ),
+        'timeout' => 15,
+    )
+);
+
+if ( ! is_wp_error( $response ) ) {
+    $data = json_decode( wp_remote_retrieve_body( $response ), true );
+    echo 'Updated: ' . implode( ', ', $data['updated'] ) . "\n";
+}
+```
+
+#### Compatibility Notes
+
+- **Works on any post type**: Pages, posts, and custom post types are all supported
+- **No template restriction**: Unlike the LAP Meta endpoint, this works on any page regardless of template
+- **Plugin-agnostic**: Writes meta for all SEO plugins simultaneously, so it works no matter which one is installed
+- **WordPress ignores inactive plugins**: If a user doesn't have Yoast installed, the `_yoast_wpseo_*` meta is harmlessly stored but never used
+- **Sanitization**: Title is sanitized with `sanitize_text_field()`, description with `sanitize_textarea_field()`
+
+#### Common Use Cases
+
+1. **Bulk SEO updates**: Programmatically set SEO meta when creating pages via API
+2. **Integration with external tools**: Allow SEO platforms to update WordPress meta directly
+3. **Migration scripts**: Transfer SEO data from other systems
+4. **Automated content pipelines**: Set SEO fields as part of content generation workflows
+
+---
+
 ## Finding Your Plugin API Key
 
 1. Log in to WordPress admin
