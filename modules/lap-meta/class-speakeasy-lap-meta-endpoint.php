@@ -267,8 +267,15 @@ class Speakeasy_LAP_Meta_Endpoint {
 		}
 
 		$updated = array();
+		$failed  = array();
 		foreach ( $body as $field_key => $value ) {
 			rwmb_set_meta( $page_id, $field_key, $value );
+
+			if ( $this->write_failed_to_persist( $page_id, $field_key, $value ) ) {
+				$failed[] = $field_key;
+				continue;
+			}
+
 			$updated[] = $field_key;
 		}
 
@@ -276,8 +283,35 @@ class Speakeasy_LAP_Meta_Endpoint {
 			array(
 				'page_id' => $page_id,
 				'updated' => $updated,
+				'failed'  => $failed,
 			)
 		);
+	}
+
+	/**
+	 * Check whether a write did not actually persist
+	 *
+	 * Rwmb_set_meta() gives no return value to check, so a Meta Box field-config
+	 * mismatch (e.g. an image sub-field that isn't configured as array-producing)
+	 * can silently drop a value while the endpoint still reports success. Reading
+	 * the value back via rwmb_meta() catches that: a non-empty write that reads
+	 * back empty did not persist. Legitimately empty input values are never
+	 * flagged, since there's nothing to verify a round trip against.
+	 *
+	 * @since  1.5.0
+	 * @param  int    $page_id   Post ID the field was written to.
+	 * @param  string $field_key Meta Box field key.
+	 * @param  mixed  $value     Value that was requested to be written.
+	 * @return bool True if the value failed to persist.
+	 */
+	private function write_failed_to_persist( int $page_id, string $field_key, $value ): bool {
+		if ( empty( $value ) ) {
+			return false;
+		}
+
+		$persisted = rwmb_meta( $field_key, array( 'object_type' => 'post' ), $page_id );
+
+		return empty( $persisted );
 	}
 
 	/**

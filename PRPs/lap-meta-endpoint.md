@@ -58,9 +58,16 @@ Partially updates LAP meta fields. Only fields present in the request body are w
 ```json
 {
   "page_id": 42,
-  "updated": ["spk_main_heading", "spk_cta_bg_color"]
+  "updated": ["spk_main_heading", "spk_cta_bg_color"],
+  "failed": []
 }
 ```
+
+> **Added 2026-08-11 (Session 6):** `failed` lists fields where `rwmb_set_meta()` reported success but
+> the value did not actually persist (verified by reading it back via `rwmb_meta()` before responding).
+> This surfaces Meta Box field-config mismatches — e.g. an image sub-field on `spk_gridbox_repeater`
+> not configured as array-producing — that previously looked like a successful write. A field is only
+> checked if a non-empty value was sent for it. See `Speakeasy_LAP_Meta_Endpoint::write_failed_to_persist()`.
 
 ---
 

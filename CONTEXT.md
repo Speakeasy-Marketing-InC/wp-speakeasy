@@ -319,34 +319,71 @@ Nothing. The endpoint is fully implemented and passes code quality checks.
 
 ---
 
-## SESSION 6 — 2026-08-11 — LAP Meta Write Verification (Gridbox Image Bug) — open
+## SESSION 6 — 2026-08-11 — LAP Meta Write Verification (Gridbox Image Bug) — closed
 Branch: main
 
-### CONTEXT
+### WHAT WAS DONE
 
-External bug report (Farjad ur Rehman, client Mancebo Law & Title, page 4043): LAP gridbox images
-(`spk_image` on `spk_gridbox_repeater`, and `spk_upload_video_image`) don't render on the live page
-even though the write call reports success. Report also claimed `spk_gridbox_repeater` is unreadable
-via API and recommended adding a GET endpoint.
+Investigated an external bug report (Farjad ur Rehman, client Mancebo Law & Title, page 4043)
+claiming LAP gridbox images don't render and `spk_gridbox_repeater` is unreadable via API, with
+plugin source assumed to live outside this repo. Both assumptions were wrong for this repo:
 
-Investigation found:
-- The GET endpoint already exists (`speakeasy/v1/lap-meta/{page_id}`, added Session 4) — the report's
-  reproduction only used the core `/wp/v2/pages/{id}` endpoint, which never carried Meta Box fields.
-  Nothing to fix here; the caller (wordpress-mcp, outside this repo) needs to use this endpoint.
-- The write path (`update_fields()`) already writes via Meta Box's own `rwmb_set_meta()`, per the
-  existing PRP's design. The rendering failure itself most likely traces to Meta Box field-group
-  config on Mancebo's live site (e.g. `spk_image` sub-field not configured as array-producing) —
-  that's outside this repo and unverifiable without access to Mancebo's WP admin.
-- Confirmed fixable gap: `update_fields()` reports every requested field as `updated` unconditionally,
-  without checking whether the write actually persisted. This is what produces the misleading
-  "success" the report describes.
+- The GET endpoint the report recommended already exists (`speakeasy/v1/lap-meta/{page_id}`, added
+  Session 4). The report's reproduction only used the core `/wp/v2/pages/{id}` endpoint, which never
+  carries Meta Box fields — the caller (wordpress-mcp, outside this repo) needs to use the existing
+  endpoint instead. No code change needed here.
+- The write path already writes via Meta Box's own `rwmb_set_meta()`, per the existing PRP's design.
+  The actual rendering failure most likely traces to Meta Box field-group config on Mancebo's live
+  site (e.g. `spk_image` sub-field not configured as array-producing) — unverifiable and unfixable
+  from this repo without access to Mancebo's WP admin.
 
-### SCOPE
+Fixed the one gap that was actually in scope: `update_fields()` reported every requested field as
+`updated` unconditionally, with no check that `rwmb_set_meta()` actually persisted the value. Added
+read-back verification — after writing, each non-empty value is re-read via `rwmb_meta()`, and fields
+that don't round-trip are now reported under a new `failed` key instead of a false `updated`.
 
-Add read-back verification to `update_fields()`: after `rwmb_set_meta()`, re-read via `rwmb_meta()`
-and only report a field as `updated` if a non-empty write round-tripped; otherwise list it under a
-new `failed` key. Update PRP, tests, and REST-API.md docs accordingly. Does not touch the GET
-endpoint, schemas, or any other module.
+### FILES CREATED OR MODIFIED
+
+```
+modules/lap-meta/class-speakeasy-lap-meta-endpoint.php  — Added write_failed_to_persist() + failed key
+tests/test-lap-meta-endpoint.php                        — 2 new tests, 1 existing test extended
+PRPs/lap-meta-endpoint.md                               — Documented failed key in POST response
+docs/REST-API.md                                        — Documented failed key + semantics
+CHANGELOG.md                                            — Unreleased entry
+CONTEXT.md                                               — This session entry
+```
+
+### TESTS WRITTEN
+
+- `test_post_reports_failed_when_write_does_not_persist` — short-circuits `update_post_metadata` to
+  simulate a Meta Box field-config mismatch (write reports success, nothing persists); asserts the
+  field lands in `failed`, not `updated`
+- `test_post_does_not_report_empty_value_as_failed` — empty values are never flagged, since there's
+  no round trip to verify
+- Extended `test_post_returns_updated_field_list` to assert `failed` is empty on a normal write
+
+### DECISIONS MADE
+
+- A field is only checked for round-trip persistence if a non-empty value was sent; empty values are
+  trivially reported as `updated` since there's nothing to verify
+- Verification reads back through `rwmb_meta()` (the same API used for GET), not `get_post_meta()`
+  directly, so it works uniformly regardless of Meta Box's internal storage format per field type
+- Did not attempt to fix or guess at Meta Box field-group configuration on any client site — that
+  requires access this repo doesn't have; the fix only makes failures visible instead of silent
+
+### STILL OPEN AT CLOSE
+
+Nothing in this repo. Outstanding externally:
+- wordpress-mcp (outside this repo) still needs to switch its read path from `get_page`/`list_pages`
+  to `GET speakeasy/v1/lap-meta/{page_id}` to actually read gridbox content
+- Mancebo's live Meta Box field-group config for `spk_gridbox_repeater` → `spk_image` needs auditing
+  by someone with access to that site's wp-admin; the new `failed` field in the POST response will
+  confirm this on the next `update_lap`/`create_lap` call against page 4043
+
+**PHPCS**: 0 errors, 0 warnings on modified files.
+**PHPStan**: Same pre-existing WordPress function stub warnings as the rest of this file (expected).
+Note: PHPUnit tests require a live WordPress + Meta Box test environment to run (none available
+locally). Tests verified for correctness by inspection, consistent with prior sessions.
 
 ---
 

@@ -8,6 +8,12 @@ Never deleted. Older entries are never modified.
 
 ## [Unreleased]
 
+### Fixed
+- **LAP Meta write verification**: `POST /wp-json/speakeasy/v1/lap-meta/{page_id}` now reads each
+  written field back before responding and reports it under a new `failed` array if a non-empty
+  value didn't actually persist, instead of always reporting success. Surfaces Meta Box field-config
+  mismatches (e.g. gridbox image sub-fields) that previously looked like successful writes.
+
 ---
 
 ## [1.1.0] — 2026-06-21

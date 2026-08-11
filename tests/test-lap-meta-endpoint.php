@@ -350,6 +350,50 @@ class Test_LAP_Meta_Endpoint extends WP_UnitTestCase {
 		$this->assertEquals( $this->lap_page_id, $data['page_id'] );
 		$this->assertContains( 'spk_main_heading', $data['updated'] );
 		$this->assertContains( 'spk_cta_bg_color', $data['updated'] );
+		$this->assertEmpty( $data['failed'] );
+	}
+
+	/**
+	 * Test POST reports a field as failed when the write does not persist
+	 *
+	 * Simulates a Meta Box field-config mismatch (e.g. the gridbox image bug)
+	 * by short-circuiting the underlying meta write, so rwmb_set_meta()
+	 * reports success but rwmb_meta() reads back nothing.
+	 *
+	 * @return void
+	 */
+	public function test_post_reports_failed_when_write_does_not_persist() {
+		// Short-circuits update_post_meta() to report success without writing,
+		// simulating a Meta Box field-config mismatch that silently drops the value.
+		add_filter( 'update_post_metadata', '__return_true', 20 );
+
+		$request = new WP_REST_Request( 'POST', '/speakeasy/v1/lap-meta/' . $this->lap_page_id );
+		$request->set_header( 'X-Speakeasy-API-Key', $this->api_key );
+		$request->set_body_params( array( 'spk_main_heading' => 'Hello World' ) );
+		$response = rest_do_request( $request );
+
+		remove_filter( 'update_post_metadata', '__return_true', 20 );
+
+		$data = $response->get_data();
+		$this->assertContains( 'spk_main_heading', $data['failed'] );
+		$this->assertNotContains( 'spk_main_heading', $data['updated'] );
+	}
+
+	/**
+	 * Test POST does not report a field as failed when the value is
+	 * legitimately empty (no round trip is possible to verify)
+	 *
+	 * @return void
+	 */
+	public function test_post_does_not_report_empty_value_as_failed() {
+		$request = new WP_REST_Request( 'POST', '/speakeasy/v1/lap-meta/' . $this->lap_page_id );
+		$request->set_header( 'X-Speakeasy-API-Key', $this->api_key );
+		$request->set_body_params( array( 'spk_call_to_action_box_text' => '' ) );
+		$response = rest_do_request( $request );
+
+		$data = $response->get_data();
+		$this->assertContains( 'spk_call_to_action_box_text', $data['updated'] );
+		$this->assertEmpty( $data['failed'] );
 	}
 
 	/**

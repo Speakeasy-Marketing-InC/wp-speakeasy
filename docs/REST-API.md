@@ -329,9 +329,18 @@ Content-Type: application/json
 ```json
 {
   "page_id": 42,
-  "updated": ["spk_main_heading", "spk_cta_bg_color"]
+  "updated": ["spk_main_heading", "spk_cta_bg_color"],
+  "failed": []
 }
 ```
+
+`updated` lists fields that were written and confirmed by reading them back. `failed` lists fields
+that reported success but did not actually persist — this happens when a field's Meta Box
+configuration on this site doesn't match the shape being sent (for example, an image sub-field that
+isn't set up to store an array of attachment IDs). A field only appears in `failed` if a non-empty
+value was sent for it; empty values are always treated as `updated` since there's nothing to verify
+a round trip against. A non-empty `failed` array means the write needs attention in this site's Meta
+Box field group configuration, not in the caller.
 
 ---
 
