@@ -319,6 +319,37 @@ Nothing. The endpoint is fully implemented and passes code quality checks.
 
 ---
 
+## SESSION 6 — 2026-08-11 — LAP Meta Write Verification (Gridbox Image Bug) — open
+Branch: main
+
+### CONTEXT
+
+External bug report (Farjad ur Rehman, client Mancebo Law & Title, page 4043): LAP gridbox images
+(`spk_image` on `spk_gridbox_repeater`, and `spk_upload_video_image`) don't render on the live page
+even though the write call reports success. Report also claimed `spk_gridbox_repeater` is unreadable
+via API and recommended adding a GET endpoint.
+
+Investigation found:
+- The GET endpoint already exists (`speakeasy/v1/lap-meta/{page_id}`, added Session 4) — the report's
+  reproduction only used the core `/wp/v2/pages/{id}` endpoint, which never carried Meta Box fields.
+  Nothing to fix here; the caller (wordpress-mcp, outside this repo) needs to use this endpoint.
+- The write path (`update_fields()`) already writes via Meta Box's own `rwmb_set_meta()`, per the
+  existing PRP's design. The rendering failure itself most likely traces to Meta Box field-group
+  config on Mancebo's live site (e.g. `spk_image` sub-field not configured as array-producing) —
+  that's outside this repo and unverifiable without access to Mancebo's WP admin.
+- Confirmed fixable gap: `update_fields()` reports every requested field as `updated` unconditionally,
+  without checking whether the write actually persisted. This is what produces the misleading
+  "success" the report describes.
+
+### SCOPE
+
+Add read-back verification to `update_fields()`: after `rwmb_set_meta()`, re-read via `rwmb_meta()`
+and only report a field as `updated` if a non-empty write round-tripped; otherwise list it under a
+new `failed` key. Update PRP, tests, and REST-API.md docs accordingly. Does not touch the GET
+endpoint, schemas, or any other module.
+
+---
+
 ## NEXT SESSION START POINT
 
 WP Speakeasy plugin v1.0.0 is complete and committed.
