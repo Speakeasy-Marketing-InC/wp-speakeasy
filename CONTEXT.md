@@ -470,6 +470,7 @@ sessions 4–6. The 24 PRP test cases are written and verified by inspection onl
    and address the matching route, rather than assuming the modern one.
 6. `admin/views/dashboard.php` is 652 lines, over the file size limit. Pre-existing, untouched.
 
+---
 
 ## SESSION 8 — 2026-08-17 — Record legacy_v1 Create-Flow Limitation — closed
 Branch: main
