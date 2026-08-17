@@ -21,29 +21,8 @@
  *
  * @since 1.3.0
  */
-class Speakeasy_LAP_Meta_Endpoint {
+class Speakeasy_LAP_Meta_Endpoint extends Speakeasy_LAP_Endpoint_Base {
 
-
-	/**
-	 * REST API namespace
-	 *
-	 * @var string
-	 */
-	const NAMESPACE = 'speakeasy/v1';
-
-	/**
-	 * Template slug that identifies a Local Area Page
-	 *
-	 * @var string
-	 */
-	const LAP_TEMPLATE = 'localareapage.php';
-
-	/**
-	 * Plugin API key
-	 *
-	 * @var string|null
-	 */
-	private $api_key;
 
 	/**
 	 * Allowed field keys and their validation rules
@@ -59,8 +38,9 @@ class Speakeasy_LAP_Meta_Endpoint {
 	 * @param string|null $api_key Plugin API key. Loaded from options when null.
 	 */
 	public function __construct( $api_key = null ) {
-		$this->api_key = $api_key ?? get_option( 'speakeasy_api_key' );
-		$this->fields  = $this->define_fields();
+		parent::__construct( $api_key );
+
+		$this->fields = $this->define_fields();
 	}
 
 	/**
@@ -132,45 +112,6 @@ class Speakeasy_LAP_Meta_Endpoint {
 	}
 
 	/**
-	 * Verify API key from request header
-	 *
-	 * Uses timing-safe comparison to prevent timing attacks.
-	 *
-	 * @since  1.3.0
-	 * @param  WP_REST_Request $request Incoming request.
-	 * @return bool|WP_Error True on success, WP_Error on failure.
-	 */
-	public function verify_api_key( $request ) {
-		$provided_key = $request->get_header( 'X-Speakeasy-API-Key' );
-
-		if ( empty( $provided_key ) ) {
-			return new WP_Error(
-				'missing_api_key',
-				'API key is required',
-				array( 'status' => 401 )
-			);
-		}
-
-		if ( empty( $this->api_key ) ) {
-			return new WP_Error(
-				'api_key_not_configured',
-				'API key not configured on this site',
-				array( 'status' => 500 )
-			);
-		}
-
-		if ( ! hash_equals( $this->api_key, $provided_key ) ) {
-			return new WP_Error(
-				'invalid_api_key',
-				'Invalid API key',
-				array( 'status' => 401 )
-			);
-		}
-
-		return true;
-	}
-
-	/**
 	 * Handle GET request — return all LAP field values for the page
 	 *
 	 * @since  1.3.0
@@ -186,11 +127,7 @@ class Speakeasy_LAP_Meta_Endpoint {
 		}
 
 		if ( ! $this->is_metabox_available() ) {
-			return new WP_Error(
-				'metabox_unavailable',
-				'Meta Box plugin is not active on this site',
-				array( 'status' => 503 )
-			);
+			return $this->metabox_unavailable_error();
 		}
 
 		$fields = array();
@@ -225,11 +162,7 @@ class Speakeasy_LAP_Meta_Endpoint {
 		}
 
 		if ( ! $this->is_metabox_available() ) {
-			return new WP_Error(
-				'metabox_unavailable',
-				'Meta Box plugin is not active on this site',
-				array( 'status' => 503 )
-			);
+			return $this->metabox_unavailable_error();
 		}
 
 		// get_json_params() handles Content-Type: application/json bodies.
@@ -312,53 +245,5 @@ class Speakeasy_LAP_Meta_Endpoint {
 		$persisted = rwmb_meta( $field_key, array( 'object_type' => 'post' ), $page_id );
 
 		return empty( $persisted );
-	}
-
-	/**
-	 * Validate that a page exists and uses the LAP template
-	 *
-	 * @since  1.3.0
-	 * @param  int $page_id Post ID to validate.
-	 * @return true|WP_Error True on success, WP_Error with 'page_not_found' or 'not_lap_page' on failure.
-	 */
-	private function validate_lap_page( int $page_id ) {
-		$post = get_post( $page_id );
-
-		if ( ! $post || 'page' !== $post->post_type ) {
-			return new WP_Error(
-				'page_not_found',
-				'Page not found',
-				array( 'status' => 404 )
-			);
-		}
-
-		$template = get_post_meta( $page_id, '_wp_page_template', true );
-
-		if ( self::LAP_TEMPLATE !== $template ) {
-			return new WP_Error(
-				'not_lap_page',
-				'This page does not use the localareapage.php template',
-				array( 'status' => 400 )
-			);
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check whether Meta Box API functions are available
-	 *
-	 * Filterable via speakeasy_metabox_available for testing.
-	 *
-	 * @since  1.3.0
-	 * @return bool
-	 */
-	private function is_metabox_available(): bool {
-		$available = function_exists( 'rwmb_meta' ) && function_exists( 'rwmb_set_meta' );
-
-		/**
-	* This filter is documented in modules/lap-meta/class-lap-meta-endpoint.php
-*/
-		return (bool) apply_filters( 'speakeasy_metabox_available', $available );
 	}
 }

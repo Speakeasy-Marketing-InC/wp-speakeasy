@@ -47,7 +47,12 @@ require_once SPEAKEASY_PATH . 'includes/class-module-manager.php';
 // Load modules.
 require_once SPEAKEASY_PATH . 'modules/app-passwords/class-app-passwords-module.php';
 require_once SPEAKEASY_PATH . 'modules/lap-meta/class-lap-meta-module.php';
+// Base class must load before the endpoints that extend it.
+require_once SPEAKEASY_PATH . 'modules/lap-meta/class-speakeasy-lap-endpoint-base.php';
+require_once SPEAKEASY_PATH . 'modules/lap-meta/class-speakeasy-lap-variant-detector.php';
 require_once SPEAKEASY_PATH . 'modules/lap-meta/class-speakeasy-lap-meta-endpoint.php';
+require_once SPEAKEASY_PATH . 'modules/lap-meta/class-speakeasy-lap-meta-legacy-v1-endpoint.php';
+require_once SPEAKEASY_PATH . 'modules/lap-meta/class-speakeasy-lap-variant-endpoint.php';
 require_once SPEAKEASY_PATH . 'modules/seo-meta/class-speakeasy-seo-meta-endpoint.php';
 
 // Load optional components if they exist.

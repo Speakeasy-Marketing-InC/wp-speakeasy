@@ -103,14 +103,25 @@ class Speakeasy_LAP_Meta_Module implements Speakeasy_Module {
 	}
 
 	/**
-	 * Register LAP meta REST endpoint
+	 * Register LAP meta REST endpoints
+	 *
+	 * One route per LAP plugin variant, plus variant discovery. The variants
+	 * use incompatible meta key sets and are never served by the same route —
+	 * see MEMORY.md § 6.
 	 *
 	 * @since 1.3.0
 	 * @return void
 	 */
 	public function register_endpoint(): void {
-		$endpoint = new Speakeasy_LAP_Meta_Endpoint();
-		$endpoint->register_routes();
+		$endpoints = array(
+			new Speakeasy_LAP_Meta_Endpoint(),
+			new Speakeasy_LAP_Meta_Legacy_V1_Endpoint(),
+			new Speakeasy_LAP_Variant_Endpoint(),
+		);
+
+		foreach ( $endpoints as $endpoint ) {
+			$endpoint->register_routes();
+		}
 	}
 
 	/**

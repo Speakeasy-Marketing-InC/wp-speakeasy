@@ -8,6 +8,28 @@ Never deleted. Older entries are never modified.
 
 ## [Unreleased]
 
+### Added
+- **Legacy LAP variant support**: sites running the legacy LAP plugin store their page content under
+  a completely different set of meta keys (`spk_mainheading`) than the modern plugin
+  (`spk_main_heading`), with no overlap. Both ship a template named `localareapage.php`, so the
+  variant could not be told apart by filename and legacy sites silently got the modern field set.
+  - `GET /wp-json/speakeasy/v1/lap-variant` — site-level variant verdict, with a `mixed` flag and
+    per-variant page counts. Fixed query cost regardless of how many LAP pages the site has.
+  - `GET /wp-json/speakeasy/v1/lap-variant/{page_id}` — per-page verdict, plus the marker keys
+    behind it.
+  - `GET|POST /wp-json/speakeasy/v1/lap-meta/legacy_v1/{page_id}` — reads and writes the 26 legacy
+    fields using the legacy plugin's own key names and value shapes. Image fields are read and
+    written as bare attachment IDs via `get_post_meta()`/`update_post_meta()`, mirroring how the
+    legacy template consumes them.
+  - Refuses to guess rather than write silently-ineffective meta: `variant_mismatch` when a page's
+    variant does not match the route, `ambiguous_field_variant` when a page carries both key styles,
+    and `variant_undetermined` when a write targets a page with no LAP meta to identify it by.
+
+### Changed
+- Auth, LAP page validation and Meta Box availability checks moved from
+  `Speakeasy_LAP_Meta_Endpoint` to a shared `Speakeasy_LAP_Endpoint_Base` that every variant
+  endpoint extends. The modern endpoint's behavior is unchanged.
+
 ### Fixed
 - **LAP Meta write verification**: `POST /wp-json/speakeasy/v1/lap-meta/{page_id}` now reads each
   written field back before responding and reports it under a new `failed` array if a non-empty
