@@ -227,7 +227,149 @@ if ( ! is_wp_error( $response ) ) {
 
 ---
 
-## LAP Meta Fields
+## LAP Plugin Variants
+
+**Start here before calling any LAP endpoint.**
+
+The LAP plugin exists in two versions, and they store the same content under different meta keys. The rename was wholesale — squashed lowercase in the legacy version, underscore-separated in the modern one — and the two sets do not overlap:
+
+| Content | Legacy key | Modern key |
+|---|---|---|
+| Main heading | `spk_mainheading` | `spk_main_heading` |
+| Video code | `spk_videocode` | `spk_video_code` |
+| CTA text | `spk_calltoactiontext` | `spk_call_to_action_box_text` |
+
+Both versions ship a page template named `localareapage.php`, so the variant **cannot** be identified by template name. The only reliable signal is which meta keys are actually present on the page.
+
+Each variant has its own route, speaking its own key names:
+
+| Variant | Route |
+|---|---|
+| modern | `speakeasy/v1/lap-meta/{page_id}` |
+| legacy_v1 | `speakeasy/v1/lap-meta/legacy_v1/{page_id}` |
+
+They are deliberately not unified behind one translating endpoint. The variants differ in **shape** as well as spelling — the legacy phone number is a plain string where the modern one is a repeater of objects, and legacy's three fixed content blocks have no counterpart to the modern `spk_gridbox_repeater` — so translation would need per-field conversion with gaps in both directions.
+
+> **Why this matters:** writing modern keys to a legacy page does not fail. WordPress stores the value under the new key perfectly happily, the API returns `200`, and the legacy template — which only ever reads the old key — renders exactly as before. The write succeeds and the page never changes. Calling the wrong route is silent, so confirm the variant first.
+
+---
+
+### GET — Site variant
+
+**Endpoint:** `GET /wp-json/speakeasy/v1/lap-variant`
+
+**Authentication:** Plugin API key via `X-Speakeasy-API-Key` header
+
+Returns the dominant variant across every LAP page on the site. Cost is a fixed two queries regardless of how many LAP pages exist.
+
+#### Request
+
+```http
+GET /wp-json/speakeasy/v1/lap-variant HTTP/1.1
+Host: yoursite.com
+X-Speakeasy-API-Key: your_plugin_api_key_here
+```
+
+#### Success Response (200 OK)
+
+```json
+{
+  "variant": "legacy_v1",
+  "mixed": false,
+  "counts": {
+    "legacy_v1": 12,
+    "modern": 0,
+    "ambiguous": 0,
+    "undetermined": 1
+  },
+  "total_lap_pages": 13
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `variant` | Dominant determinate variant — `legacy_v1`, `modern`, or `undetermined` if the site has no identifiable LAP pages. Ties resolve to `legacy_v1`. |
+| `mixed` | `true` when both variants are present. **Do not trust `variant` for individual pages when this is `true`** — resolve each page with the per-page call. |
+| `counts.ambiguous` | Pages carrying both key styles. These need manual cleanup; the write endpoints refuse them. |
+| `counts.undetermined` | Pages with no LAP meta yet — usually newly created and not yet filled in. |
+| `total_lap_pages` | Pages using the `localareapage.php` template. |
+
+---
+
+### GET — Page variant
+
+**Endpoint:** `GET /wp-json/speakeasy/v1/lap-variant/{page_id}`
+
+**Authentication:** Plugin API key via `X-Speakeasy-API-Key` header
+
+#### Request
+
+```http
+GET /wp-json/speakeasy/v1/lap-variant/4043 HTTP/1.1
+Host: yoursite.com
+X-Speakeasy-API-Key: your_plugin_api_key_here
+```
+
+#### Success Response (200 OK)
+
+```json
+{
+  "page_id": 4043,
+  "variant": "legacy_v1",
+  "markers": {
+    "legacy_v1": ["spk_mainheading", "spk_calltoactiontext"],
+    "modern": []
+  }
+}
+```
+
+`markers` lists the keys the verdict was based on. On an `ambiguous` page it names both sides of the conflict, which is what you need to clean it up.
+
+| Verdict | Meaning | What to do |
+|---|---|---|
+| `legacy_v1` | Only legacy keys present | Use the `legacy_v1` route |
+| `modern` | Only modern keys present | Use the modern route |
+| `ambiguous` | Both key styles present | Resolve manually — both write routes refuse this page |
+| `undetermined` | No LAP meta at all | Readable but not writable; populate the page in wp-admin first |
+
+#### Error responses
+
+| Status | Code | Cause |
+|---|---|---|
+| 401 | `missing_api_key` | `X-Speakeasy-API-Key` header not sent |
+| 401 | `invalid_api_key` | Key sent but does not match stored key |
+| 404 | `page_not_found` | No page exists with the given ID |
+| 400 | `not_lap_page` | Page exists but does not use the `localareapage.php` template |
+
+---
+
+### Choosing a route
+
+```javascript
+const BASE = 'https://example.com/wp-json/speakeasy/v1';
+const KEY  = 'spk_1234567890abcdef';
+
+async function routeFor(pageId) {
+  const res = await fetch(`${BASE}/lap-variant/${pageId}`, {
+    headers: { 'X-Speakeasy-API-Key': KEY }
+  });
+  const { variant } = await res.json();
+
+  if (variant === 'modern')    return `${BASE}/lap-meta/${pageId}`;
+  if (variant === 'legacy_v1') return `${BASE}/lap-meta/legacy_v1/${pageId}`;
+
+  // ambiguous or undetermined — needs a human, not a guess.
+  throw new Error(`Page ${pageId} variant is ${variant}`);
+}
+```
+
+On a site where `mixed` is `false`, call `/lap-variant` once and reuse the answer for every page instead of checking each one.
+
+---
+
+## LAP Meta Fields (modern variant)
+
+> Serves pages using the **modern** LAP field set. If `/lap-variant` reports `legacy_v1` for the site or page, use [LAP Meta Fields (legacy_v1)](#lap-meta-fields-legacy_v1) instead — this route's keys do not exist on legacy pages, and writing them changes nothing on the rendered page.
 
 Read and write the custom meta fields on Local Area Pages (pages using the `localareapage.php` template). The endpoint talks directly to the Meta Box plugin API so it handles the internal storage format of group/clone fields correctly — you send and receive clean JSON without needing to know how Meta Box serialises data internally.
 
@@ -527,6 +669,256 @@ The POST body contains a field key that is not in the allowed list. Check for ty
 
 **400 invalid_field_value**
 `spk_select_video` was set to a value other than `Youtube`, `Vimeo`, or `Image`. The value is case-sensitive.
+
+---
+
+## LAP Meta Fields (legacy_v1)
+
+> Serves pages using the **legacy** LAP field set. Confirm the variant with [`/lap-variant`](#lap-plugin-variants) before calling this route.
+
+Same purpose as the modern LAP endpoint, but speaking the legacy plugin's own key names and value shapes. Nothing is translated — what you send and receive is exactly what is stored, and exactly what the legacy template reads.
+
+### How it fits together
+
+```
+Your request
+    │
+    ▼
+speakeasy/v1/lap-meta/legacy_v1/{page_id}
+    │
+    ├── validates API key (X-Speakeasy-API-Key header)
+    ├── confirms page exists and uses localareapage.php template
+    ├── confirms Meta Box plugin is active
+    ├── confirms the page's variant matches this route
+    │      ├── modern page      → 400 variant_mismatch
+    │      ├── both key styles  → 400 ambiguous_field_variant
+    │      └── no LAP meta      → readable; 400 variant_undetermined on write
+    │
+    ├── GET  → text fields via rwmb_meta(),     images via get_post_meta()
+    └── POST → text fields via rwmb_set_meta(), images via update_post_meta()
+```
+
+**Why images take a different path:** the legacy template reads every image with `get_post_meta( $post->ID, 'spk_bannerbgimg', true )` and passes the result straight to `wp_get_attachment_url()`. It expects a bare attachment ID, not the array Meta Box would store. Writing these through Meta Box would persist a value the template cannot read — a write that reports success and renders nothing. So image fields go through `update_post_meta()` and are sent and returned as plain integers.
+
+---
+
+### GET — Read all field values
+
+**Endpoint:** `GET /wp-json/speakeasy/v1/lap-meta/legacy_v1/{page_id}`
+
+**Authentication:** Plugin API key via `X-Speakeasy-API-Key` header
+
+#### Request
+
+```http
+GET /wp-json/speakeasy/v1/lap-meta/legacy_v1/4043 HTTP/1.1
+Host: yoursite.com
+X-Speakeasy-API-Key: your_plugin_api_key_here
+```
+
+#### Success Response (200 OK)
+
+```json
+{
+  "page_id": 4043,
+  "variant": "legacy_v1",
+  "fields": {
+    "spk_mainheading": "Hartford DUI Attorney",
+    "spk_videolefttext": "<p>Some rich text...</p>",
+    "spk_videocode": "dQw4w9WgXcQ",
+    "spk_selectvideo": "Youtube",
+    "spk_calltoactiontext": "Call us today ",
+    "spk_calltoactionnumber": "860-555-0100",
+    "spk_bottomsectionheading": "Local Experience",
+    "spk_bottomsectioncontent": "<p>Body copy...</p>",
+    "spk_bottomsectioncall2": 1,
+    "spk_mapsection": 1,
+    "spk_mapheading": "Find Our Office",
+    "spk_bannerbgimg": 4321,
+    "spk_calltoactionimg": 987
+  }
+}
+```
+
+All 26 fields are always present in the response; the example above is abridged. `variant` is always `legacy_v1` — assert on it if you want a guard against calling the wrong route.
+
+---
+
+### POST — Update fields (partial)
+
+Only the fields you include in the request body are written. Fields you omit are left exactly as they are.
+
+**Endpoint:** `POST /wp-json/speakeasy/v1/lap-meta/legacy_v1/{page_id}`
+
+**Authentication:** Plugin API key via `X-Speakeasy-API-Key` header
+
+#### Request
+
+```http
+POST /wp-json/speakeasy/v1/lap-meta/legacy_v1/4043 HTTP/1.1
+Host: yoursite.com
+X-Speakeasy-API-Key: your_plugin_api_key_here
+Content-Type: application/json
+
+{
+  "spk_mainheading": "Hartford DUI Attorney",
+  "spk_calltoactionnumber": "860-555-0100"
+}
+```
+
+#### Success Response (200 OK)
+
+```json
+{
+  "page_id": 4043,
+  "variant": "legacy_v1",
+  "updated": ["spk_mainheading", "spk_calltoactionnumber"],
+  "failed": []
+}
+```
+
+`updated` and `failed` behave exactly as on the modern endpoint: every non-empty write is read back through the same path the template uses, and anything that did not persist is reported in `failed` rather than counted as success. Empty values are always reported as `updated`, since there is no round trip to verify.
+
+---
+
+### Field reference
+
+26 fields. Booleans are stored and returned as `1`/`0`, matching what the template truthiness-checks. Image fields are bare attachment IDs — send an integer, receive an integer, `0` when unset.
+
+| Field | Value type | Description |
+|---|---|---|
+| `spk_mainheading` | string | Main heading above the video section |
+| `spk_videolefttext` | string (HTML) | Rich text beside the video |
+| `spk_videocode` | string | YouTube or Vimeo video ID |
+| `spk_selectvideo` | string enum | Video platform — must be `Youtube` or `Vimeo` |
+| `spk_videoimg` | integer | Attachment ID, shown when no video code is set |
+| `spk_bannerbgimg` | integer | Attachment ID for the page banner background |
+| `spk_calltoactiontext` | string | Text in the call-to-action band |
+| `spk_calltoactionnumber` | string | Phone number in the call-to-action band |
+| `spk_calltoactionimg` | integer | Attachment ID for the phone icon |
+| `spk_bottomsectionheading` | string | Heading for content block 1 |
+| `spk_bottomsectioncontent` | string (HTML) | Body of content block 1 |
+| `spk_bottomsectioncontentimg` | integer | Attachment ID for content block 1 |
+| `spk_bottomsectionheading2` | string | Heading for content block 2 |
+| `spk_bottomsectioncontent2` | string (HTML) | Body of content block 2 |
+| `spk_bottomsectioncontentimg2` | integer | Attachment ID for content block 2 |
+| `spk_bottomsectioncall2` | boolean | Show a second call-to-action band after block 2 |
+| `spk_bottomsectionheading3` | string | Heading for content block 3 |
+| `spk_bottomsectioncontent3` | string (HTML) | Body of content block 3 |
+| `spk_bottomsectioncontentimg3` | integer | Attachment ID for content block 3 |
+| `spk_mapsection` | boolean | Show the map section |
+| `spk_mapheading` | string | Map section heading |
+| `spk_mapaddress` | string | Address shown beside the map |
+| `spk_mapphone` | string | Phone number shown beside the map |
+| `spk_mapfax` | string | Fax number shown beside the map |
+| `spk_mapiframe` | string (HTML) | Map embed markup |
+| `spk_mapimg` | integer | Attachment ID for the map image |
+
+**No equivalent to the modern `spk_gridbox_repeater`.** Legacy pages use the three fixed `spk_bottomsectioncontent*` blocks instead. Sending `spk_gridbox_repeater` to this route returns `unknown_field`.
+
+---
+
+### Error responses
+
+| Status | Code | Cause |
+|---|---|---|
+| 401 | `missing_api_key` | `X-Speakeasy-API-Key` header not sent |
+| 401 | `invalid_api_key` | Key sent but does not match stored key |
+| 500 | `api_key_not_configured` | Plugin API key has not been set on this site |
+| 404 | `page_not_found` | No page exists with the given ID |
+| 400 | `not_lap_page` | Page exists but does not use the `localareapage.php` template |
+| 400 | `variant_mismatch` | Page uses the modern field set — use the modern route |
+| 400 | `ambiguous_field_variant` | Page carries both legacy and modern keys |
+| 400 | `variant_undetermined` | Write attempted on a page with no LAP meta to identify it by |
+| 400 | `unknown_field` | POST body contains a key not in the legacy field list |
+| 400 | `invalid_field_value` | `spk_selectvideo` is not `Youtube` or `Vimeo` |
+| 503 | `metabox_unavailable` | Meta Box plugin is not active on this site |
+
+Ambiguity errors name the conflict rather than just reporting one:
+
+```json
+{
+  "code": "ambiguous_field_variant",
+  "message": "This page carries both legacy and modern LAP meta. Resolve it manually before writing via the API.",
+  "data": {
+    "status": 400,
+    "markers": {
+      "legacy_v1": ["spk_mainheading"],
+      "modern": ["spk_main_heading"]
+    }
+  }
+}
+```
+
+---
+
+### Examples
+
+**cURL — read fields**
+```bash
+curl https://example.com/wp-json/speakeasy/v1/lap-meta/legacy_v1/4043 \
+  -H "X-Speakeasy-API-Key: spk_1234567890abcdef"
+```
+
+**cURL — update text and an image**
+```bash
+curl -X POST https://example.com/wp-json/speakeasy/v1/lap-meta/legacy_v1/4043 \
+  -H "X-Speakeasy-API-Key: spk_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "spk_mainheading": "Hartford DUI Attorney",
+    "spk_calltoactionnumber": "860-555-0100",
+    "spk_calltoactionimg": 987,
+    "spk_mapsection": true
+  }'
+```
+
+**Python — confirm the variant, then write**
+```python
+import requests
+
+BASE = 'https://example.com/wp-json/speakeasy/v1'
+HEADERS = {
+    'X-Speakeasy-API-Key': 'spk_1234567890abcdef',
+    'Content-Type': 'application/json'
+}
+PAGE = 4043
+
+variant = requests.get(f'{BASE}/lap-variant/{PAGE}', headers=HEADERS).json()['variant']
+
+if variant == 'legacy_v1':
+    url = f'{BASE}/lap-meta/legacy_v1/{PAGE}'
+elif variant == 'modern':
+    url = f'{BASE}/lap-meta/{PAGE}'
+else:
+    raise SystemExit(f'Page {PAGE} is {variant} — resolve it before writing')
+
+r = requests.post(url, json={'spk_mainheading': 'Hartford DUI Attorney'}, headers=HEADERS)
+print('Updated:', r.json()['updated'], 'Failed:', r.json()['failed'])
+```
+
+---
+
+### Prerequisites
+
+- Meta Box plugin must be **active** on the site
+- The page must use the **`localareapage.php`** page template
+- The page's variant must resolve to `legacy_v1`
+- The plugin API key must be configured (Settings → WP Speakeasy)
+
+### Troubleshooting
+
+**400 variant_mismatch**
+The page uses modern keys. Send it to `speakeasy/v1/lap-meta/{page_id}` instead. The error body includes `page_variant` and `route_variant`.
+
+**400 ambiguous_field_variant**
+The page has both key styles, usually from a partial migration or a previous write to the wrong route. The `markers` object names the conflicting keys. Decide which set the template actually renders, clear the other in wp-admin, then retry.
+
+**400 variant_undetermined**
+The page has no LAP meta at all, so there is nothing to identify its variant by. The endpoint refuses rather than guessing — guessing wrong writes keys the template never reads and fails silently. Populate at least one field in wp-admin first, then write via the API.
+
+**GET returns all empty fields with no error**
+The page is `undetermined` — it exists and uses the LAP template but has no content yet. This is a valid read, not an error.
 
 ---
 

@@ -92,9 +92,23 @@ Forces WordPress Application Passwords to be available, even if disabled by:
 
 Exposes custom meta fields from Local Area Page templates to the REST API.
 
+**Plugin variants**: the LAP plugin exists in two versions that store the same content under
+different meta keys, with no overlap between them. Both ship a template named `localareapage.php`,
+so the variant cannot be told apart by template name — call `GET speakeasy/v1/lap-variant` (or
+`/lap-variant/{page_id}`) to find out which a site or page uses, then address the matching route:
+
+| Variant | Route |
+|---|---|
+| modern | `speakeasy/v1/lap-meta/{page_id}` |
+| legacy_v1 | `speakeasy/v1/lap-meta/legacy_v1/{page_id}` |
+
+Calling the wrong route fails silently on write — the value persists under a key the template never
+reads, so the API returns success and the page does not change. See
+[docs/REST-API.md](docs/REST-API.md) for full endpoint documentation.
+
 **Schema Files**: Located in `modules/lap-meta/schemas/`
 
-Default schema: `localareapage.php`
+Default schema: `localareapage.php`. Legacy field definitions: `localareapage-legacy-v1.php`
 
 #### Adding Custom Schemas
 
