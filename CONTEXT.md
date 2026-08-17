@@ -620,6 +620,7 @@ inspection-verified.
 6. **Open decision**: whether variant detection should probe more than three marker keys.
 7. `admin/views/dashboard.php` is 652 lines, over the file size limit. Pre-existing, untouched.
 
+---
 
 ## SESSION 10 — 2026-08-17 — REST API Doc Audit — closed
 Branch: main
