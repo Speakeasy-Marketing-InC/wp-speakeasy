@@ -504,3 +504,8 @@ composer phpcs                # Check coding standards
 composer phpstan              # Run static analysis
 composer test                 # Run test suite (requires WordPress test environment)
 ```
+
+---
+
+## SESSION 8 — 2026-08-17 — Record legacy_v1 Create-Flow Limitation — open
+Branch: main
