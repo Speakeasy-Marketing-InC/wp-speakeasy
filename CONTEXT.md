@@ -424,3 +424,8 @@ define( 'SPEAKEASY_GITHUB_TOKEN', 'ghp_xxx' );
 define( 'SPEAKEASY_API_ENDPOINT', 'https://api.speakeasy.com/wp-plugin' );
 define( 'SPEAKEASY_API_TOKEN', 'spk_xxx' );
 ```
+
+---
+
+## SESSION 7 — 2026-08-17 — Legacy LAP Plugin Endpoint Compatibility — open
+Branch: main
