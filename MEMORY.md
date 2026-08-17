@@ -57,6 +57,27 @@ Read this at the start of every session before writing any code.
 
 ---
 
+### 6. LAP Endpoint Variants: Route Per Version, Shared Base Class
+
+**Decision:** Each LAP plugin version gets its own REST route speaking that version's native
+meta keys and shapes (`lap-meta/{id}` for modern, `lap-meta/legacy_v1/{id}` for legacy), with a
+separate discovery endpoint reporting which version a site or page uses. Shared request-handling
+concerns (API key verification, LAP page validation, Meta Box availability) are extracted into a
+common base class that every variant endpoint inherits.
+
+**Why:** The LAP plugin renamed all meta keys between versions (`spk_mainheading` →
+`spk_main_heading`) and changed the shape of several fields — the phone number went from string to
+repeater, three fixed content blocks became one variable-length repeater. A single normalizing
+endpoint would need per-field shape conversion with genuine gaps in both directions. Separate
+routes mean the two shapes never meet. The base class is extracted rather than duplicated because
+the variant family is explicitly expected to grow, and `legacy_v2` should inherit auth and
+validation rather than copy it a third time.
+
+**Rules out:** A single endpoint that translates legacy keys to canonical modern names;
+detecting the variant from the template filename (both versions ship `localareapage.php`);
+inferring a variant when a page's meta is ambiguous or absent — those cases return an explicit
+error instead.
+
 ## CURRENT PROJECT STATE
 
 ### Fully Working
