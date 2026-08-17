@@ -26,23 +26,16 @@ class Speakeasy_LAP_Variant_Endpoint extends Speakeasy_LAP_Endpoint_Base {
 
 
 	/**
-	 * Variant detector
+	 * The LAP plugin variant this endpoint's route serves
 	 *
-	 * @var Speakeasy_LAP_Variant_Detector
-	 */
-	private $detector;
-
-	/**
-	 * Constructor
+	 * Discovery reports on every variant rather than serving one, and never
+	 * calls guard_request(). It reports no variant of its own.
 	 *
-	 * @since 1.6.0
-	 * @param string|null                         $api_key  Plugin API key. Loaded from options when null.
-	 * @param Speakeasy_LAP_Variant_Detector|null $detector Detector instance. Created when null.
+	 * @since  1.7.0
+	 * @return string
 	 */
-	public function __construct( $api_key = null, $detector = null ) {
-		parent::__construct( $api_key );
-
-		$this->detector = $detector ?? new Speakeasy_LAP_Variant_Detector();
+	protected function get_route_variant(): string {
+		return Speakeasy_LAP_Variant_Detector::VARIANT_UNDETERMINED;
 	}
 
 	/**

@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<ruleset name="WP Speakeasy">
+	<description>WordPress Coding Standards for WP Speakeasy.</description>
+
+	<file>.</file>
+	<exclude-pattern>vendor/*</exclude-pattern>
+	<arg name="extensions" value="php"/>
+
+	<rule ref="WordPress"/>
+
+	<rule ref="WordPress.Files.FileName">
+		<properties>
+			<!--
+			WPCS exempts test classes from its class-file-naming rule, but only
+			recognises a hardcoded list of base classes. Shared abstract cases
+			in tests/ are not on that list, so their subclasses get flagged for
+			following this directory's own test-*.php convention. Declaring them
+			here restores the exemption.
+			-->
+			<property name="custom_test_classes" type="array">
+				<element value="Legacy_V1_TestCase"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

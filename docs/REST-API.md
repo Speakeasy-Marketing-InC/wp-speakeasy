@@ -250,7 +250,15 @@ Each variant has its own route, speaking its own key names:
 
 They are deliberately not unified behind one translating endpoint. The variants differ in **shape** as well as spelling — the legacy phone number is a plain string where the modern one is a repeater of objects, and legacy's three fixed content blocks have no counterpart to the modern `spk_gridbox_repeater` — so translation would need per-field conversion with gaps in both directions.
 
-> **Why this matters:** writing modern keys to a legacy page does not fail. WordPress stores the value under the new key perfectly happily, the API returns `200`, and the legacy template — which only ever reads the old key — renders exactly as before. The write succeeds and the page never changes. Calling the wrong route is silent, so confirm the variant first.
+> **Why this matters:** at the storage layer, writing modern keys to a legacy page does not fail. WordPress stores the value under the new key perfectly happily and the legacy template — which only ever reads the old key — renders exactly as before. The write succeeds and the page never changes.
+>
+> Every route therefore guards its own variant and returns `400 variant_mismatch` rather than accepting a write that would do nothing. You still want to confirm the variant first, but getting it wrong is now a loud error rather than a silent no-op.
+
+Both routes apply the same rule:
+
+> Refuse when the page's own variant contradicts the route. When the page has no variant of its own, trust the route unless the **site's** variant contradicts it.
+
+The second half is what lets a freshly created page be populated in one pass: a page with no LAP meta has no variant to contradict the route, so the write is allowed — unless the rest of the site is plainly the other variant, in which case the caller is on the wrong route and is told so.
 
 ---
 
@@ -369,7 +377,7 @@ On a site where `mixed` is `false`, call `/lap-variant` once and reuse the answe
 
 ## LAP Meta Fields (modern variant)
 
-> Serves pages using the **modern** LAP field set. If `/lap-variant` reports `legacy_v1` for the site or page, use [LAP Meta Fields (legacy_v1)](#lap-meta-fields-legacy_v1) instead — this route's keys do not exist on legacy pages, and writing them changes nothing on the rendered page.
+> Serves pages using the **modern** LAP field set. If `/lap-variant` reports `legacy_v1` for the site or page, use [LAP Meta Fields (legacy_v1)](#lap-meta-fields-legacy_v1) instead — this route refuses legacy pages with `400 variant_mismatch`, because its keys do not exist on them and writing them would change nothing on the rendered page.
 
 Read and write the custom meta fields on Local Area Pages (pages using the `localareapage.php` template). The endpoint talks directly to the Meta Box plugin API so it handles the internal storage format of group/clone fields correctly — you send and receive clean JSON without needing to know how Meta Box serialises data internally.
 
@@ -412,6 +420,7 @@ X-Speakeasy-API-Key: your_plugin_api_key_here
 ```json
 {
   "page_id": 42,
+  "variant": "modern",
   "fields": {
     "spk_main_heading": "Welcome to Austin",
     "spk_upload_video_image": [123],
@@ -471,6 +480,7 @@ Content-Type: application/json
 ```json
 {
   "page_id": 42,
+  "variant": "modern",
   "updated": ["spk_main_heading", "spk_cta_bg_color"],
   "failed": []
 }
@@ -539,6 +549,8 @@ All errors follow the standard WordPress REST API error envelope.
 | 500 | `api_key_not_configured` | Plugin API key has not been set on this site |
 | 404 | `page_not_found` | No page exists with the given ID |
 | 400 | `not_lap_page` | Page exists but does not use the `localareapage.php` template |
+| 400 | `variant_mismatch` | Page uses the legacy field set, or has no LAP meta and sits on a plainly legacy site — use the legacy_v1 route |
+| 400 | `ambiguous_field_variant` | Page carries both legacy and modern keys |
 | 400 | `unknown_field` | POST body contains a key not in the allowed field list |
 | 400 | `invalid_field_value` | `spk_select_video` value is not `Youtube`, `Vimeo`, or `Image` |
 | 503 | `metabox_unavailable` | Meta Box plugin is not active on this site |
@@ -670,6 +682,12 @@ The POST body contains a field key that is not in the allowed list. Check for ty
 **400 invalid_field_value**
 `spk_select_video` was set to a value other than `Youtube`, `Vimeo`, or `Image`. The value is case-sensitive.
 
+**400 variant_mismatch**
+The page uses legacy keys, or it has no LAP meta at all and the rest of the site is plainly legacy. Send it to `speakeasy/v1/lap-meta/legacy_v1/{page_id}` instead. The error body's `detected_from` says whether the page itself or the surrounding site decided it.
+
+**400 ambiguous_field_variant**
+The page carries both key styles. The `markers` object names the conflicting keys; resolve it in wp-admin before writing via the API.
+
 ---
 
 ## LAP Meta Fields (legacy_v1)
@@ -692,7 +710,7 @@ speakeasy/v1/lap-meta/legacy_v1/{page_id}
     ├── confirms the page's variant matches this route
     │      ├── modern page      → 400 variant_mismatch
     │      ├── both key styles  → 400 ambiguous_field_variant
-    │      └── no LAP meta      → readable; 400 variant_undetermined on write
+    │      └── no LAP meta      → allowed, unless the SITE is plainly modern
     │
     ├── GET  → text fields via rwmb_meta(),     images via get_post_meta()
     └── POST → text fields via rwmb_set_meta(), images via update_post_meta()
@@ -829,7 +847,6 @@ Content-Type: application/json
 | 400 | `not_lap_page` | Page exists but does not use the `localareapage.php` template |
 | 400 | `variant_mismatch` | Page uses the modern field set — use the modern route |
 | 400 | `ambiguous_field_variant` | Page carries both legacy and modern keys |
-| 400 | `variant_undetermined` | Write attempted on a page with no LAP meta to identify it by |
 | 400 | `unknown_field` | POST body contains a key not in the legacy field list |
 | 400 | `invalid_field_value` | `spk_selectvideo` is not `Youtube` or `Vimeo` |
 | 503 | `metabox_unavailable` | Meta Box plugin is not active on this site |
@@ -914,18 +931,10 @@ The page uses modern keys. Send it to `speakeasy/v1/lap-meta/{page_id}` instead.
 **400 ambiguous_field_variant**
 The page has both key styles, usually from a partial migration or a previous write to the wrong route. The `markers` object names the conflicting keys. Decide which set the template actually renders, clear the other in wp-admin, then retry.
 
-**400 variant_undetermined**
-The page has no LAP meta at all, so there is nothing to identify its variant by. The endpoint refuses rather than guessing — guessing wrong writes keys the template never reads and fails silently.
+**400 variant_mismatch on a brand-new page**
+The page itself has no LAP meta, so the route was checked against the rest of the site — and the site is plainly the other variant. Either you are on the wrong route, or this really is the site's first page of this variant, in which case set one marker field (`spk_mainheading`, `spk_calltoactiontext`, or `spk_videolefttext`) in wp-admin so the page identifies itself, then continue via the API.
 
-To resolve it, set one of these three **marker** fields on the page in wp-admin, then write the rest via the API:
-
-- `spk_mainheading`
-- `spk_calltoactiontext`
-- `spk_videolefttext`
-
-Filling in any other legacy field — a map heading, a phone number, an image — does **not** resolve it. Variant detection probes only those three keys, so the next write fails identically.
-
-> **Known limitation — creating a page and populating it in one pass does not work.** A page created via the API has no meta yet, so the first write to it is refused. The page is created; its content is not. Set a marker field manually, then continue via the API. Making this work end-to-end requires a way for the caller to declare the variant at create time, which does not exist yet.
+Note that creating a page and populating it in one pass **does** work — a fresh page is written on the route's say-so whenever the site agrees, is mixed, or has no other LAP pages to compare against.
 
 **GET returns all empty fields with no error**
 The page is `undetermined` — it exists and uses the LAP template but has no content yet. This is a valid read, not an error.

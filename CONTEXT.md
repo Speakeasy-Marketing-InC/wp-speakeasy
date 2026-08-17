@@ -470,42 +470,6 @@ sessions 4–6. The 24 PRP test cases are written and verified by inspection onl
    and address the matching route, rather than assuming the modern one.
 6. `admin/views/dashboard.php` is 652 lines, over the file size limit. Pre-existing, untouched.
 
----
-
-## NEXT SESSION START POINT
-
-Read CLAUDE.md, MEMORY.md, CONTEXT.md, and DECISIONS.md in that order.
-
-Nothing in DECISIONS.md is open. The legacy LAP variant work is complete and pushed; what remains is
-verification, which needs environments this repo does not have.
-
-Highest value first:
-
-1. **Split the legacy test file** (item 1 above). The split is specified and only needs approval —
-   it is the one piece of session 7's own work left unfinished, and it puts the repo back inside the
-   file size rule.
-2. **Run the suite somewhere real.** Stand up WordPress + Meta Box test environment, run all 24 new
-   cases plus the untouched modern-endpoint suite. The modern suite passing unmodified is the
-   contract on the base-class extraction.
-3. **Settle the Mancebo question** (item 4). One API call. If it comes back `legacy_v1`, session 6's
-   record needs correcting and the client's actual fix is the legacy route.
-4. **Update wordpress-mcp** to do variant discovery before reading or writing LAP meta.
-5. **`legacy_v2` when it appears.** The base class, detector and route pattern are built to absorb
-   it: add a marker key set to `Speakeasy_LAP_Variant_Detector::MARKERS`, a schema file, and an
-   endpoint class extending the base.
-
-Endpoint documentation is in `docs/REST-API.md` §§ LAP Plugin Variants / LAP Meta Fields (modern) /
-LAP Meta Fields (legacy_v1).
-
-Code quality checklist:
-```bash
-composer install              # Install dependencies
-composer phpcs                # Check coding standards
-composer phpstan              # Run static analysis
-composer test                 # Run test suite (requires WordPress test environment)
-```
-
----
 
 ## SESSION 8 — 2026-08-17 — Record legacy_v1 Create-Flow Limitation — closed
 Branch: main
@@ -558,5 +522,135 @@ the two decisions above.
 
 ---
 
-## SESSION 9 — 2026-08-17 — Uniform Variant Guards Across LAP Routes — open
+## SESSION 9 — 2026-08-17 — Uniform Variant Guards Across LAP Routes — closed
 Branch: main
+
+### WHAT WAS DONE
+
+Made every LAP variant route behave identically, and unblocked create-and-populate in one pass.
+Specified in `PRPs/legacy-lap-variant-endpoints.md` § Amendment 1, approved before implementation.
+
+Two problems, one root. The legacy route refused any write to a page with no LAP meta, so a page
+could be created but not populated. And only the legacy route guarded its variant at all — a legacy
+page addressed on the modern route still accepted writes that persisted under keys its template
+never reads and returned `200`.
+
+The original refusal rested on "a blank page gives no signal, so writing means guessing." That was
+wrong in one respect: **the route is the caller's declaration of variant.** A page with no meta has
+nothing to contradict it. The residual risk — a caller wrong about the site — is caught by
+site-level detection, which already existed.
+
+One rule, applied by every route:
+
+> Refuse when the page's own variant contradicts the route. When the page has no variant of its own,
+> trust the route unless the **site's** variant contradicts it.
+
+- Guard logic moved into `Speakeasy_LAP_Endpoint_Base::guard_request()`; both endpoints call it.
+  Subclasses declare their variant via `get_route_variant()`.
+- Site detection is consulted only when the page is `undetermined`, so the common path costs no
+  extra queries. Mixed sites and sites with no other LAP pages both proceed — refusing the latter
+  would make it impossible to populate a site's first LAP page.
+- `variant_undetermined` removed; no longer reachable.
+- Both routes now return `variant` in their responses.
+
+### BREAKING CHANGES
+
+The modern route stops being permissive. Both were silent failures becoming loud ones, but they are
+behavior changes to a live endpoint:
+
+- A legacy page on the modern route now returns `400 variant_mismatch` instead of `200` with empty
+  fields (GET) or a successful-looking no-op (POST).
+- An ambiguous page on the modern route now returns `400 ambiguous_field_variant`.
+
+### DECISIONS MADE
+
+- **Symmetry is the governing principle** — if one route guards, all do; if one can populate a fresh
+  page, all can. Recorded in DECISIONS.md § RESOLVED and MEMORY.md § 6.
+- This supersedes the session 7 answer ("reject with an explicit error" on undetermined pages) and
+  the PRP constraint that the modern endpoint's behavior must not change. Both are marked superseded
+  in place rather than deleted, so the record shows a decision was made and not an oversight.
+
+### TESTS
+
+Nine cases added, one removed (`variant_undetermined` no longer exists). Guard coverage on both
+routes: page-variant mismatch, ambiguity, and all four undetermined-page site conditions
+(agrees / mixed / no other LAP pages / contradicts).
+
+Test files were also split to satisfy the file size rule — this clears session 7's outstanding item:
+
+```
+tests/class-legacy-v1-test-case.php          — shared fixtures (abstract Legacy_V1_TestCase)
+tests/test-lap-meta-legacy-v1-endpoint.php   — legacy read/write
+tests/test-lap-meta-legacy-v1-guards.php     — legacy variant guards
+tests/test-lap-meta-endpoint.php             — modern read/write (back to 450 lines)
+tests/test-lap-meta-guards.php               — modern variant guards
+```
+
+### TOOLING NOTE
+
+Added `phpcs.xml.dist` and pointed `composer phpcs`/`phpcbf` at it. WPCS exempts test classes from
+its class-file-naming rule but only recognises a hardcoded list of base classes, so subclasses of a
+shared abstract case were flagged for following this repo's own `test-*.php` convention. The ruleset
+declares `custom_test_classes` to restore the exemption. Verified equivalent to the previous inline
+flags: repo-wide totals are identical apart from those two false positives.
+
+### VERIFICATION
+
+**PHPCS**: 0 errors and 0 warnings across every file this session touched, except the pre-existing
+filename error and direct-DB-call warnings in `class-lap-meta-module.php` and the detector.
+**PHPStan**: only the categories already present codebase-wide (missing WP function stubs, iterable
+value types). No new findings.
+**PHPUnit**: **still could not run.** No WordPress test library locally. Everything remains
+inspection-verified.
+
+### STILL OPEN AT CLOSE
+
+1. **No test has ever executed** — across sessions 7, 8 and 9. This is now the single largest risk:
+   a substantial behavior change to a live endpoint, verified only by reading it.
+2. **Existing modern tests were reasoned about, not run.** The blank LAP page they use is the
+   "first page on the site" case and should still write, but that is an inspection claim.
+3. **Test 20 still needs a real legacy site** — legacy image writes persisting as bare attachment
+   IDs the template can read.
+4. **Mancebo hypothesis unconfirmed** — one call to `GET speakeasy/v1/lap-variant/4043` settles
+   whether session 6's conclusion was a misdiagnosis.
+5. **wordpress-mcp needs updating** — variant discovery before read/write, and its
+   `create_lap_legacy_v1` tool description should drop the "cannot populate a new page" limitation,
+   which no longer holds.
+6. **Open decision**: whether variant detection should probe more than three marker keys.
+7. `admin/views/dashboard.php` is 652 lines, over the file size limit. Pre-existing, untouched.
+
+---
+
+## NEXT SESSION START POINT
+
+Read CLAUDE.md, MEMORY.md, CONTEXT.md, and DECISIONS.md in that order.
+
+The LAP variant work is feature-complete and pushed. One decision is open (marker breadth); nothing
+blocks it.
+
+**Run the test suite before anything else.** Three sessions of work have never executed. Stand up
+WordPress + Meta Box, run all suites, and treat the modern endpoint's untouched tests as the
+contract on the base-class extraction and the new guards. Everything below is lower priority than
+this.
+
+Then:
+
+1. **Settle the Mancebo question** — `GET speakeasy/v1/lap-variant/4043`. If it returns `legacy_v1`,
+   session 6's recorded conclusion needs correcting and that client's real fix is the legacy route.
+2. **Update wordpress-mcp** — variant discovery before LAP reads and writes; drop the stale
+   create-flow limitation from the `create_lap_legacy_v1` description.
+3. **Decide the marker-breadth question** in DECISIONS.md. A legacy page with only map fields or
+   images set currently reads as `undetermined`.
+4. **`legacy_v2` when it appears** — add a marker set to `Speakeasy_LAP_Variant_Detector::MARKERS`,
+   a schema file, and an endpoint class extending the base. The guard comes for free.
+
+Endpoint documentation is in `docs/REST-API.md` §§ LAP Plugin Variants / LAP Meta Fields (modern) /
+LAP Meta Fields (legacy_v1).
+
+Code quality checklist:
+```bash
+composer install              # Install dependencies
+composer phpcs                # Check coding standards (reads phpcs.xml.dist)
+composer phpstan              # Run static analysis
+composer test                 # Run test suite (requires WordPress test environment)
+```

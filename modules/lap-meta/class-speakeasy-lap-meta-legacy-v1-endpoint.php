@@ -41,13 +41,6 @@ class Speakeasy_LAP_Meta_Legacy_V1_Endpoint extends Speakeasy_LAP_Endpoint_Base 
 	private $fields;
 
 	/**
-	 * Variant detector
-	 *
-	 * @var Speakeasy_LAP_Variant_Detector
-	 */
-	private $detector;
-
-	/**
 	 * Constructor
 	 *
 	 * @since 1.6.0
@@ -55,10 +48,19 @@ class Speakeasy_LAP_Meta_Legacy_V1_Endpoint extends Speakeasy_LAP_Endpoint_Base 
 	 * @param Speakeasy_LAP_Variant_Detector|null $detector Detector instance. Created when null.
 	 */
 	public function __construct( $api_key = null, $detector = null ) {
-		parent::__construct( $api_key );
+		parent::__construct( $api_key, $detector );
 
-		$this->detector = $detector ?? new Speakeasy_LAP_Variant_Detector();
-		$this->fields   = require __DIR__ . '/schemas/localareapage-legacy-v1.php';
+		$this->fields = require __DIR__ . '/schemas/localareapage-legacy-v1.php';
+	}
+
+	/**
+	 * The LAP plugin variant this endpoint's route serves
+	 *
+	 * @since  1.7.0
+	 * @return string
+	 */
+	protected function get_route_variant(): string {
+		return self::VARIANT;
 	}
 
 	/**
@@ -173,84 +175,6 @@ class Speakeasy_LAP_Meta_Legacy_V1_Endpoint extends Speakeasy_LAP_Endpoint_Base 
 				'variant' => self::VARIANT,
 				'updated' => $updated,
 				'failed'  => $failed,
-			)
-		);
-	}
-
-	/**
-	 * Run the shared precondition checks for both methods
-	 *
-	 * A page whose variant cannot be determined is readable — an empty page
-	 * legitimately has no markers, and returning empty fields is honest. It is
-	 * not writable: choosing a key style for a blank page means guessing which
-	 * plugin renders it, and guessing wrong writes keys the template never
-	 * reads, which fails silently. That is the failure this endpoint exists to
-	 * eliminate, so the write path refuses rather than infers.
-	 *
-	 * @since  1.6.0
-	 * @param  int  $page_id    Post ID being addressed.
-	 * @param  bool $is_write   Whether the request will write.
-	 * @return true|WP_Error True when the request may proceed.
-	 */
-	private function guard_request( int $page_id, bool $is_write ) {
-		$validation = $this->validate_lap_page( $page_id );
-		if ( is_wp_error( $validation ) ) {
-			return $validation;
-		}
-
-		if ( ! $this->is_metabox_available() ) {
-			return $this->metabox_unavailable_error();
-		}
-
-		$variant = $this->detector->detect_page( $page_id );
-
-		if ( Speakeasy_LAP_Variant_Detector::VARIANT_AMBIGUOUS === $variant ) {
-			return $this->ambiguous_variant_error( $page_id );
-		}
-
-		if ( Speakeasy_LAP_Variant_Detector::VARIANT_MODERN === $variant ) {
-			return new WP_Error(
-				'variant_mismatch',
-				'This page uses the modern LAP field set. Use speakeasy/v1/lap-meta/' . $page_id . ' instead.',
-				array(
-					'status'        => 400,
-					'page_variant'  => $variant,
-					'route_variant' => self::VARIANT,
-				)
-			);
-		}
-
-		if ( $is_write && Speakeasy_LAP_Variant_Detector::VARIANT_UNDETERMINED === $variant ) {
-			return new WP_Error(
-				'variant_undetermined',
-				'This page has no LAP meta yet, so its variant cannot be determined. '
-					. 'Populate it in wp-admin first, or confirm the variant via speakeasy/v1/lap-variant.',
-				array(
-					'status'       => 400,
-					'page_variant' => $variant,
-				)
-			);
-		}
-
-		return true;
-	}
-
-	/**
-	 * Build the ambiguous-variant error, naming the actual conflict
-	 *
-	 * @since  1.6.0
-	 * @param  int $page_id Post ID being addressed.
-	 * @return WP_Error
-	 */
-	private function ambiguous_variant_error( int $page_id ): WP_Error {
-		$markers = $this->detector->get_present_markers( $page_id );
-
-		return new WP_Error(
-			'ambiguous_field_variant',
-			'This page carries both legacy and modern LAP meta. Resolve it manually before writing via the API.',
-			array(
-				'status'  => 400,
-				'markers' => $markers,
 			)
 		);
 	}

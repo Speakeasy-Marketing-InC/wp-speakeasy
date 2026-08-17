@@ -102,8 +102,10 @@ so the variant cannot be told apart by template name — call `GET speakeasy/v1/
 | modern | `speakeasy/v1/lap-meta/{page_id}` |
 | legacy_v1 | `speakeasy/v1/lap-meta/legacy_v1/{page_id}` |
 
-Calling the wrong route fails silently on write — the value persists under a key the template never
-reads, so the API returns success and the page does not change. See
+Each route guards its own variant, so calling the wrong one returns `400 variant_mismatch` rather
+than accepting a write that would persist under a key the template never reads. A page with no LAP
+meta yet is written on the route's say-so — which is what allows a page to be created and populated
+in one pass — unless the rest of the site is plainly the other variant. See
 [docs/REST-API.md](docs/REST-API.md) for full endpoint documentation.
 
 **Schema Files**: Located in `modules/lap-meta/schemas/`

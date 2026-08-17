@@ -28,6 +28,11 @@ if ( file_exists( $_tests_dir . '/includes/functions.php' ) ) {
 	tests_add_filter( 'muplugins_loaded', '_manually_load_plugin' );
 
 	require $_tests_dir . '/includes/bootstrap.php';
+
+	// Shared abstract test cases. Loaded explicitly rather than relying on the
+	// suite's directory scan order, so a subclass can never be loaded first.
+	// These extend WP_UnitTestCase, so they only exist in this branch.
+	require_once __DIR__ . '/class-legacy-v1-test-case.php';
 } else {
 	// Fallback for environments without WordPress test suite.
 	echo "Warning: WordPress test suite not found. Using minimal bootstrap.\n";

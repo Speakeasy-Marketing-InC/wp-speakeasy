@@ -30,8 +30,8 @@
     "scripts": {
         "test": "phpunit --configuration phpunit.xml.dist",
         "test:coverage": "phpunit --configuration phpunit.xml.dist --coverage-html coverage",
-        "phpcs": "phpcs --standard=WordPress --extensions=php --ignore=vendor/ .",
-        "phpcbf": "phpcbf --standard=WordPress --extensions=php --ignore=vendor/ .",
+        "phpcs": "phpcs",
+        "phpcbf": "phpcbf",
         "phpstan": "phpstan analyse --level=8 includes/ modules/ admin/"
     },
     "config": {

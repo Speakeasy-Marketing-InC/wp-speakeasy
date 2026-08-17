@@ -22,13 +22,25 @@ Never deleted. Older entries are never modified.
     written as bare attachment IDs via `get_post_meta()`/`update_post_meta()`, mirroring how the
     legacy template consumes them.
   - Refuses to guess rather than write silently-ineffective meta: `variant_mismatch` when a page's
-    variant does not match the route, `ambiguous_field_variant` when a page carries both key styles,
-    and `variant_undetermined` when a write targets a page with no LAP meta to identify it by.
+    variant does not match the route, `ambiguous_field_variant` when a page carries both key styles.
 
 ### Changed
 - Auth, LAP page validation and Meta Box availability checks moved from
   `Speakeasy_LAP_Meta_Endpoint` to a shared `Speakeasy_LAP_Endpoint_Base` that every variant
-  endpoint extends. The modern endpoint's behavior is unchanged.
+  endpoint extends.
+- **Breaking — every LAP route now enforces the same variant guard.** Previously only the legacy_v1
+  route checked, so a legacy page addressed on the modern route accepted writes that persisted under
+  keys its template never reads and returned `200`. That case now returns `400 variant_mismatch`, and
+  a page carrying both key styles returns `400 ambiguous_field_variant`. Callers pointing at the
+  modern route for legacy pages will start seeing 400s; those calls were already having no effect.
+- Both LAP routes now include `variant` in their responses.
+- A page with no LAP meta can now be populated on either route, making create-and-populate work in
+  one pass. The route is treated as the caller's declaration of variant; the write is refused only
+  when the site's own variant unambiguously contradicts it. `variant_undetermined` is removed — it is
+  no longer reachable.
+- `composer phpcs` / `phpcbf` now read `phpcs.xml.dist` instead of passing flags inline. The ruleset
+  is equivalent, plus a `custom_test_classes` declaration so shared abstract test cases in `tests/`
+  keep WPCS's test-class exemption.
 
 ### Fixed
 - **LAP Meta write verification**: `POST /wp-json/speakeasy/v1/lap-meta/{page_id}` now reads each

@@ -25,6 +25,13 @@ class Speakeasy_LAP_Meta_Endpoint extends Speakeasy_LAP_Endpoint_Base {
 
 
 	/**
+	 * Variant this endpoint serves
+	 *
+	 * @var string
+	 */
+	const VARIANT = Speakeasy_LAP_Variant_Detector::VARIANT_MODERN;
+
+	/**
 	 * Allowed field keys and their validation rules
 	 *
 	 * @var array<string, array>
@@ -35,12 +42,23 @@ class Speakeasy_LAP_Meta_Endpoint extends Speakeasy_LAP_Endpoint_Base {
 	 * Constructor
 	 *
 	 * @since 1.3.0
-	 * @param string|null $api_key Plugin API key. Loaded from options when null.
+	 * @param string|null                         $api_key  Plugin API key. Loaded from options when null.
+	 * @param Speakeasy_LAP_Variant_Detector|null $detector Detector instance. Created when null.
 	 */
-	public function __construct( $api_key = null ) {
-		parent::__construct( $api_key );
+	public function __construct( $api_key = null, $detector = null ) {
+		parent::__construct( $api_key, $detector );
 
 		$this->fields = $this->define_fields();
+	}
+
+	/**
+	 * The LAP plugin variant this endpoint's route serves
+	 *
+	 * @since  1.7.0
+	 * @return string
+	 */
+	protected function get_route_variant(): string {
+		return self::VARIANT;
 	}
 
 	/**
@@ -121,13 +139,9 @@ class Speakeasy_LAP_Meta_Endpoint extends Speakeasy_LAP_Endpoint_Base {
 	public function get_fields( $request ) {
 		$page_id = absint( $request->get_param( 'page_id' ) );
 
-		$validation = $this->validate_lap_page( $page_id );
-		if ( is_wp_error( $validation ) ) {
-			return $validation;
-		}
-
-		if ( ! $this->is_metabox_available() ) {
-			return $this->metabox_unavailable_error();
+		$guard = $this->guard_request( $page_id, false );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
 		}
 
 		$fields = array();
@@ -138,6 +152,7 @@ class Speakeasy_LAP_Meta_Endpoint extends Speakeasy_LAP_Endpoint_Base {
 		return rest_ensure_response(
 			array(
 				'page_id' => $page_id,
+				'variant' => self::VARIANT,
 				'fields'  => $fields,
 			)
 		);
@@ -156,13 +171,9 @@ class Speakeasy_LAP_Meta_Endpoint extends Speakeasy_LAP_Endpoint_Base {
 	public function update_fields( $request ) {
 		$page_id = absint( $request->get_param( 'page_id' ) );
 
-		$validation = $this->validate_lap_page( $page_id );
-		if ( is_wp_error( $validation ) ) {
-			return $validation;
-		}
-
-		if ( ! $this->is_metabox_available() ) {
-			return $this->metabox_unavailable_error();
+		$guard = $this->guard_request( $page_id, true );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
 		}
 
 		// get_json_params() handles Content-Type: application/json bodies.
@@ -215,6 +226,7 @@ class Speakeasy_LAP_Meta_Endpoint extends Speakeasy_LAP_Endpoint_Base {
 		return rest_ensure_response(
 			array(
 				'page_id' => $page_id,
+				'variant' => self::VARIANT,
 				'updated' => $updated,
 				'failed'  => $failed,
 			)

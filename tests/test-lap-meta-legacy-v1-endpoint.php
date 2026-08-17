@@ -1,6 +1,8 @@
 <?php
 /**
- * Tests for Speakeasy_LAP_Meta_Legacy_V1_Endpoint
+ * Read and write tests for Speakeasy_LAP_Meta_Legacy_V1_Endpoint
+ *
+ * Variant guard behavior lives in test-lap-meta-legacy-v1-guards.php.
  *
  * @package WP_Speakeasy
  * @since   1.6.0
@@ -11,89 +13,8 @@
  *
  * @since 1.6.0
  */
-class Test_LAP_Meta_Legacy_V1_Endpoint extends WP_UnitTestCase {
+class Test_LAP_Meta_Legacy_V1_Endpoint extends Legacy_V1_TestCase {
 
-
-	/**
-	 * Test API key
-	 *
-	 * @var string
-	 */
-	private $api_key = 'test_api_key_lap_legacy_v1';
-
-	/**
-	 * Legacy LAP page post ID
-	 *
-	 * @var int
-	 */
-	private $legacy_page_id;
-
-	/**
-	 * Route prefix under test
-	 *
-	 * @var string
-	 */
-	private $route = '/speakeasy/v1/lap-meta/legacy_v1/';
-
-	/**
-	 * Set up test environment
-	 *
-	 * @return void
-	 */
-	public function setUp(): void {
-		parent::setUp();
-
-		update_option( 'speakeasy_api_key', $this->api_key );
-
-		$this->legacy_page_id = $this->create_lap_page();
-		// Marker that makes the page detectably legacy_v1.
-		update_post_meta( $this->legacy_page_id, 'spk_mainheading', 'Legacy Heading' );
-
-		$endpoint = new Speakeasy_LAP_Meta_Legacy_V1_Endpoint( $this->api_key );
-		$endpoint->register_routes();
-	}
-
-	/**
-	 * Tear down test environment
-	 *
-	 * @return void
-	 */
-	public function tearDown(): void {
-		delete_option( 'speakeasy_api_key' );
-
-		parent::tearDown();
-	}
-
-	/**
-	 * Create a page using the LAP template
-	 *
-	 * @return int Post ID.
-	 */
-	private function create_lap_page(): int {
-		$page_id = $this->factory->post->create(
-			array(
-				'post_type'   => 'page',
-				'post_status' => 'publish',
-			)
-		);
-		update_post_meta( $page_id, '_wp_page_template', 'localareapage.php' );
-
-		return $page_id;
-	}
-
-	/**
-	 * Build an authenticated request against the legacy route
-	 *
-	 * @param  string $method  HTTP method.
-	 * @param  int    $page_id Target page ID.
-	 * @return WP_REST_Request
-	 */
-	private function request( string $method, int $page_id ): WP_REST_Request {
-		$request = new WP_REST_Request( $method, $this->route . $page_id );
-		$request->set_header( 'X-Speakeasy-API-Key', $this->api_key );
-
-		return $request;
-	}
 
 	// -------------------------------------------------------------------
 	// Auth
@@ -159,138 +80,6 @@ class Test_LAP_Meta_Legacy_V1_Endpoint extends WP_UnitTestCase {
 
 		$this->assertEquals( 400, $response->get_status() );
 		$this->assertEquals( 'not_lap_page', $response->get_data()['code'] );
-	}
-
-	/**
-	 * Test both methods return 503 when Meta Box is unavailable
-	 *
-	 * @return void
-	 */
-	public function test_returns_503_when_metabox_unavailable() {
-		add_filter( 'speakeasy_metabox_available', '__return_false' );
-
-		$response = rest_do_request( $this->request( 'GET', $this->legacy_page_id ) );
-
-		remove_filter( 'speakeasy_metabox_available', '__return_false' );
-
-		$this->assertEquals( 503, $response->get_status() );
-		$this->assertEquals( 'metabox_unavailable', $response->get_data()['code'] );
-	}
-
-	// -------------------------------------------------------------------
-	// Variant guards
-	// -------------------------------------------------------------------
-
-	/**
-	 * Test GET rejects a modern page addressed on the legacy route
-	 *
-	 * @return void
-	 */
-	public function test_get_modern_page_returns_variant_mismatch() {
-		$page_id = $this->create_lap_page();
-		update_post_meta( $page_id, 'spk_main_heading', 'Modern Heading' );
-
-		$response = rest_do_request( $this->request( 'GET', $page_id ) );
-
-		$this->assertEquals( 400, $response->get_status() );
-		$this->assertEquals( 'variant_mismatch', $response->get_data()['code'] );
-	}
-
-	/**
-	 * Test POST refuses to write to a modern page on the legacy route
-	 *
-	 * @return void
-	 */
-	public function test_post_modern_page_writes_nothing() {
-		$page_id = $this->create_lap_page();
-		update_post_meta( $page_id, 'spk_main_heading', 'Modern Heading' );
-
-		$request = $this->request( 'POST', $page_id );
-		$request->set_body_params( array( 'spk_mainheading' => 'Should Not Land' ) );
-		$response = rest_do_request( $request );
-
-		$this->assertEquals( 400, $response->get_status() );
-		$this->assertEquals( 'variant_mismatch', $response->get_data()['code'] );
-		$this->assertEmpty( get_post_meta( $page_id, 'spk_mainheading', true ) );
-	}
-
-	/**
-	 * Test a page carrying both key styles is rejected on GET
-	 *
-	 * @return void
-	 */
-	public function test_get_ambiguous_page_returns_error_naming_markers() {
-		update_post_meta( $this->legacy_page_id, 'spk_main_heading', 'Modern Heading' );
-
-		$response = rest_do_request( $this->request( 'GET', $this->legacy_page_id ) );
-
-		$this->assertEquals( 400, $response->get_status() );
-
-		$data = $response->get_data();
-		$this->assertEquals( 'ambiguous_field_variant', $data['code'] );
-		// The error names the conflict rather than just reporting one exists.
-		$this->assertContains(
-			'spk_mainheading',
-			$data['data']['markers'][ Speakeasy_LAP_Variant_Detector::VARIANT_LEGACY_V1 ]
-		);
-		$this->assertContains(
-			'spk_main_heading',
-			$data['data']['markers'][ Speakeasy_LAP_Variant_Detector::VARIANT_MODERN ]
-		);
-	}
-
-	/**
-	 * Test POST refuses to write to an ambiguous page
-	 *
-	 * @return void
-	 */
-	public function test_post_ambiguous_page_writes_nothing() {
-		update_post_meta( $this->legacy_page_id, 'spk_main_heading', 'Modern Heading' );
-
-		$request = $this->request( 'POST', $this->legacy_page_id );
-		$request->set_body_params( array( 'spk_calltoactiontext' => 'Should Not Land' ) );
-		$response = rest_do_request( $request );
-
-		$this->assertEquals( 400, $response->get_status() );
-		$this->assertEquals( 'ambiguous_field_variant', $response->get_data()['code'] );
-		$this->assertEmpty( get_post_meta( $this->legacy_page_id, 'spk_calltoactiontext', true ) );
-	}
-
-	/**
-	 * Test POST refuses to write to a page whose variant cannot be determined
-	 *
-	 * Guessing a key style for a blank page is exactly the silent failure this
-	 * endpoint exists to prevent.
-	 *
-	 * @return void
-	 */
-	public function test_post_undetermined_page_writes_nothing() {
-		$page_id = $this->create_lap_page();
-
-		$request = $this->request( 'POST', $page_id );
-		$request->set_body_params( array( 'spk_mainheading' => 'Should Not Land' ) );
-		$response = rest_do_request( $request );
-
-		$this->assertEquals( 400, $response->get_status() );
-		$this->assertEquals( 'variant_undetermined', $response->get_data()['code'] );
-		$this->assertEmpty( get_post_meta( $page_id, 'spk_mainheading', true ) );
-	}
-
-	/**
-	 * Test GET is allowed on a page whose variant cannot be determined
-	 *
-	 * An empty page has no markers by definition; returning empty fields is
-	 * honest, and reading cannot damage anything.
-	 *
-	 * @return void
-	 */
-	public function test_get_undetermined_page_is_allowed() {
-		$page_id = $this->create_lap_page();
-
-		$response = rest_do_request( $this->request( 'GET', $page_id ) );
-
-		$this->assertEquals( 200, $response->get_status() );
-		$this->assertEmpty( $response->get_data()['fields']['spk_mainheading'] );
 	}
 
 	// -------------------------------------------------------------------
