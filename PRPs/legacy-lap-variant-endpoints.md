@@ -232,11 +232,100 @@ The existing `tests/test-lap-meta-endpoint.php` suite must pass untouched — no
 tests as part of this work. If a test there needs changing to stay green, the extraction is
 wrong and I stop and report rather than adjusting the test.
 
+> **Superseded by Amendment 1 (2026-08-17).** The modern endpoint's behavior *does* now change:
+> it gains the same variant guards as the legacy route. The constraint above applied to the
+> base-class extraction only, and held for it.
+
 Adds to FILES:
 
 - new: `modules/lap-meta/class-speakeasy-lap-endpoint-base.php`
 - modified: `modules/lap-meta/class-speakeasy-lap-meta-endpoint.php` (extends base;
   helpers removed, behavior identical)
+
+---
+
+## AMENDMENT 1 — Uniform guards, and create-and-populate in one pass
+
+**Added:** 2026-08-17 (session 9). **Status:** awaiting approval.
+
+### Why
+
+Two problems with what shipped, both from the same root:
+
+1. **The create flow is blocked.** The legacy route refuses any write to a page with no LAP meta
+   (`variant_undetermined`), including a page the caller just created. wordpress-mcp's
+   `create_lap_legacy_v1` creates the page and cannot populate it.
+2. **The two routes behave differently.** The legacy route guards its variant; the modern route has
+   no guard at all. So a legacy page addressed on the modern route still gets the original silent
+   failure — the write persists under keys the template never reads and returns `200`.
+
+The original refusal was justified as "a blank page gives no signal, so writing means guessing."
+That reasoning was wrong in one respect: **the route itself is the caller's declaration of variant.**
+`POST /lap-meta/legacy_v1/{id}` says the page is legacy. On a page with no meta there is nothing to
+contradict it. The residual risk is a caller wrong about the site — and site-level detection, which
+already exists, catches exactly that.
+
+### Rule
+
+One rule, applied identically by every variant route:
+
+> Refuse when the page's own variant contradicts the route. When the page has no variant of its own,
+> trust the route unless the **site's** variant contradicts it.
+
+| Page variant | Site variant | Result |
+|---|---|---|
+| matches route | any | proceed |
+| other variant | any | `variant_mismatch` |
+| `ambiguous` | any | `ambiguous_field_variant` |
+| `undetermined` | matches route | proceed — route and site agree |
+| `undetermined` | `mixed` | proceed — no majority evidence either way |
+| `undetermined` | no other LAP pages | proceed — first LAP page on the site |
+| `undetermined` | contradicts route | `variant_mismatch` |
+
+Reads stay permitted on `undetermined` pages regardless of site variant, as now.
+
+`variant_undetermined` is no longer reachable and is removed. Its 400 case is now covered by
+`variant_mismatch`, whose message names the route the caller should have used.
+
+### Scope
+
+- Guard logic moves to `Speakeasy_LAP_Endpoint_Base` as a shared method taking the route's variant;
+  both endpoints call it. The legacy endpoint's private `guard_request()` collapses into it.
+- `Speakeasy_LAP_Meta_Endpoint` declares `VARIANT = modern` and gains the guard.
+- Site-level detection is consulted only when the page is `undetermined`, so the common path costs
+  no extra queries.
+
+### Breaking changes
+
+The modern route stops being permissive. Both are deliberate — each one is a silent failure being
+converted into a loud one — but they are behavior changes to a live endpoint:
+
+- A **legacy** page addressed on the modern route now returns `400 variant_mismatch` instead of
+  `200` with empty fields (GET) or a successful-looking no-op write (POST).
+- An **ambiguous** page on the modern route now returns `400 ambiguous_field_variant`.
+
+Any caller currently pointing at the modern route for legacy pages will start seeing 400s. Those
+calls were already doing nothing; they will now say so.
+
+### Tests
+
+Added to the modern suite (`tests/test-lap-meta-endpoint.php` — now edited, per the note above):
+
+25. Legacy page on the modern route → `variant_mismatch` on GET and POST, nothing written
+26. Ambiguous page on the modern route → `ambiguous_field_variant`, nothing written
+27. Undetermined page on a modern-dominant site → write proceeds
+28. Undetermined page on a legacy-dominant site → `variant_mismatch`, nothing written
+29. Existing modern tests still pass unmodified — blank LAP page with no other LAP pages on the
+    site is the "first page" case and must keep writing
+
+Added to the legacy suite:
+
+30. Undetermined page on a legacy-dominant site → write proceeds (was `variant_undetermined`)
+31. Undetermined page on a modern-dominant site → `variant_mismatch`, nothing written
+32. Undetermined page on a mixed site → write proceeds
+33. Undetermined page, no other LAP pages on the site → write proceeds
+
+Test 22 (`variant_undetermined` on write) is removed — the error no longer exists.
 
 ---
 

@@ -75,8 +75,15 @@ validation rather than copy it a third time.
 
 **Rules out:** A single endpoint that translates legacy keys to canonical modern names;
 detecting the variant from the template filename (both versions ship `localareapage.php`);
-inferring a variant when a page's meta is ambiguous or absent — those cases return an explicit
-error instead.
+inferring a variant when a page's meta is ambiguous — that case returns an explicit error instead.
+
+**Amended 2026-08-17 (session 9):** every variant route enforces the same guard, and the route
+itself counts as the caller's declaration of variant. A page whose own meta identifies a different
+variant is refused; a page with no meta at all is written on the route's say-so unless the site's
+variant contradicts it. This is what lets a page be created and populated in one pass, and it gives
+the modern route the guards it originally lacked — a legacy page addressed on the modern route now
+fails loudly instead of accepting writes that render nothing. Consistency across routes is the
+governing principle: if one route guards, all do; if one can populate a fresh page, all can.
 
 ## CURRENT PROJECT STATE
 
