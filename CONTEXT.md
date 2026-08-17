@@ -555,3 +555,8 @@ Everything carried over from session 7 — the test file split (515 lines, over 
 proposed and awaiting approval), no test has ever executed, test 20 needs a real legacy site, the
 Mancebo hypothesis is unconfirmed, and wordpress-mcp still needs variant discovery wired in. Plus
 the two decisions above.
+
+---
+
+## SESSION 9 — 2026-08-17 — Uniform Variant Guards Across LAP Routes — open
+Branch: main
