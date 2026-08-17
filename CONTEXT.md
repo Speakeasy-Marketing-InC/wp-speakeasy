@@ -507,5 +507,51 @@ composer test                 # Run test suite (requires WordPress test environm
 
 ---
 
-## SESSION 8 — 2026-08-17 — Record legacy_v1 Create-Flow Limitation — open
+## SESSION 8 — 2026-08-17 — Record legacy_v1 Create-Flow Limitation — closed
 Branch: main
+
+### WHAT WAS DONE
+
+Documentation only — no code changed.
+
+Recorded a known limitation reported against the session 7 work: the legacy_v1 write route refuses
+any write to a page with no pre-existing legacy meta, including one the caller just created, so
+wordpress-mcp's `create_lap_legacy_v1` creates the page but cannot populate it.
+
+The behavior is correct and deliberate — a page with no LAP meta carries no signal of which variant
+renders it, and guessing wrong writes keys the template never reads, which is the silent failure the
+variant routes exist to prevent. Recorded as a known issue rather than a bug so a future session
+does not "fix" it by defaulting to a variant.
+
+**Corrected an inaccuracy in the reported workaround.** The report said to populate "at least one
+legacy field" to unblock the page. That is not sufficient: `Speakeasy_LAP_Variant_Detector::MARKERS`
+probes only three keys — `spk_mainheading`, `spk_calltoactiontext`, `spk_videolefttext`. Filling in
+any other legacy field (map heading, phone number, an image) leaves the page `undetermined` and the
+next write fails identically. Both CLAUDE.md and the docs now name the three fields explicitly.
+
+### FILES MODIFIED
+
+```
+CLAUDE.md            — KNOWN ISSUES entry, with why it must not be "fixed" by defaulting
+docs/REST-API.md     — variant_undetermined troubleshooting: the three marker fields,
+                       plus a callout that create-and-populate in one pass does not work
+DECISIONS.md         — two open decisions (below)
+```
+
+### PENDING DECISIONS OPENED
+
+1. **How should a caller create and populate a legacy_v1 page in one pass?** Options recorded:
+   explicit `variant` parameter trusted only on undetermined pages; a dedicated create route; or
+   leave the manual step as the documented workaround. Blocks changes to
+   `guard_request()`'s write path.
+2. **Should detection probe more than three marker keys?** A legacy page with only map fields or
+   images filled in currently reads as `undetermined`. Widening to all 26 keys costs a larger `IN`
+   clause in one query. Noted explicitly that this does **not** fix the create flow — a page with no
+   meta at all stays undetermined under any marker set. Blocks changes to `MARKERS`.
+
+### STILL OPEN AT CLOSE
+
+Everything carried over from session 7 — the test file split (515 lines, over the limit, split
+proposed and awaiting approval), no test has ever executed, test 20 needs a real legacy site, the
+Mancebo hypothesis is unconfirmed, and wordpress-mcp still needs variant discovery wired in. Plus
+the two decisions above.

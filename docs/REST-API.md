@@ -915,7 +915,17 @@ The page uses modern keys. Send it to `speakeasy/v1/lap-meta/{page_id}` instead.
 The page has both key styles, usually from a partial migration or a previous write to the wrong route. The `markers` object names the conflicting keys. Decide which set the template actually renders, clear the other in wp-admin, then retry.
 
 **400 variant_undetermined**
-The page has no LAP meta at all, so there is nothing to identify its variant by. The endpoint refuses rather than guessing — guessing wrong writes keys the template never reads and fails silently. Populate at least one field in wp-admin first, then write via the API.
+The page has no LAP meta at all, so there is nothing to identify its variant by. The endpoint refuses rather than guessing — guessing wrong writes keys the template never reads and fails silently.
+
+To resolve it, set one of these three **marker** fields on the page in wp-admin, then write the rest via the API:
+
+- `spk_mainheading`
+- `spk_calltoactiontext`
+- `spk_videolefttext`
+
+Filling in any other legacy field — a map heading, a phone number, an image — does **not** resolve it. Variant detection probes only those three keys, so the next write fails identically.
+
+> **Known limitation — creating a page and populating it in one pass does not work.** A page created via the API has no meta yet, so the first write to it is refused. The page is created; its content is not. Set a marker field manually, then continue via the API. Making this work end-to-end requires a way for the caller to declare the variant at create time, which does not exist yet.
 
 **GET returns all empty fields with no error**
 The page is `undetermined` — it exists and uses the LAP template but has no content yet. This is a valid read, not an error.

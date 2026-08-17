@@ -12,7 +12,37 @@ Rules:
 
 ## OPEN — Requires human input before implementation
 
-[None yet — open decisions will be added here as they arise during development]
+### How should a caller create and populate a legacy_v1 page in one pass?
+
+**Raised:** 2026-08-17 (session 8)
+
+A brand-new page has no LAP meta, so its variant cannot be detected and the legacy_v1 write route
+refuses it (`variant_undetermined`). The page gets created; its content does not. See CLAUDE.md
+§ KNOWN ISSUES. Refusing is correct given what the endpoint can currently know — the open question
+is what to add so the create flow works without reintroducing guessing.
+
+Options:
+- **(a)** Accept an explicit `variant` parameter on write, trusted only when the page is
+  `undetermined`. Unblocks create; moves the risk of being wrong to the caller.
+- **(b)** A dedicated create route that takes the variant as part of page creation, so the variant is
+  established at the same moment the page is.
+- **(c)** Leave it. The manual marker-field step stays the documented workaround.
+
+Blocks: any change to `Speakeasy_LAP_Meta_Legacy_V1_Endpoint::guard_request()` write path.
+
+### Should variant detection probe more than three marker keys?
+
+**Raised:** 2026-08-17 (session 8)
+
+`Speakeasy_LAP_Variant_Detector::MARKERS` probes three keys per variant. A legacy page that has, say,
+only map fields and images filled in reads as `undetermined` even though it is plainly legacy, and
+both its reads and writes are affected accordingly.
+
+Widening to the full 26-key set would make detection near-exhaustive at the cost of a larger `IN`
+clause in one query. It does **not** fix the create-flow issue above — a page with no meta at all
+stays undetermined under any marker set. These are separate problems and should not be conflated.
+
+Blocks: any change to `Speakeasy_LAP_Variant_Detector::MARKERS`.
 
 ---
 

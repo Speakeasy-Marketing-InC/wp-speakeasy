@@ -319,4 +319,23 @@ wp-speakeasy/
 
 ## KNOWN ISSUES — DO NOT FIX
 
-[None yet — add issues here when they arise]
+### legacy_v1 write route cannot populate a brand-new page
+
+`POST speakeasy/v1/lap-meta/legacy_v1/{page_id}` refuses any write to a page with no pre-existing
+legacy meta, returning `400 variant_undetermined` — including a page the caller just created. In
+wordpress-mcp this surfaces as `create_lap_legacy_v1` creating the WordPress page successfully and
+then failing to set its meta, returning an error naming the page ID.
+
+**This is deliberate, not a bug.** A page with no LAP meta carries no signal of which plugin variant
+renders it. Guessing wrong writes keys the template never reads, which persists happily and reports
+success while changing nothing on the page — the exact silent failure the variant routes exist to
+eliminate. Refusing is the correct behavior. Do not "fix" it by defaulting to a variant.
+
+**Workaround:** populate one of the three legacy *marker* fields on the page in wp-admin —
+`spk_mainheading`, `spk_calltoactiontext`, or `spk_videolefttext` — then use
+`update_lap_legacy_v1` for the rest. Filling in any other legacy field (map heading, phone number,
+an image) does **not** resolve it; detection probes only those three keys. See
+`Speakeasy_LAP_Variant_Detector::MARKERS`.
+
+A real fix means giving the caller a way to declare the variant explicitly on create. That is a
+design change requiring a PRP — see DECISIONS.md.
