@@ -655,3 +655,8 @@ composer phpcs                # Check coding standards (reads phpcs.xml.dist)
 composer phpstan              # Run static analysis
 composer test                 # Run test suite (requires WordPress test environment)
 ```
+
+---
+
+## SESSION 10 — 2026-08-17 — REST API Doc Audit — open
+Branch: main
