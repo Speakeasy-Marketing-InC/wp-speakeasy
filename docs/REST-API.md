@@ -357,17 +357,28 @@ X-Speakeasy-API-Key: your_plugin_api_key_here
 const BASE = 'https://example.com/wp-json/speakeasy/v1';
 const KEY  = 'spk_1234567890abcdef';
 
-async function routeFor(pageId) {
+const routes = {
+  modern:    pageId => `${BASE}/lap-meta/${pageId}`,
+  legacy_v1: pageId => `${BASE}/lap-meta/legacy_v1/${pageId}`
+};
+
+// `intended` is the variant you mean to write, used only when the page is new
+// and has nothing to identify it by.
+async function routeFor(pageId, intended = 'legacy_v1') {
   const res = await fetch(`${BASE}/lap-variant/${pageId}`, {
     headers: { 'X-Speakeasy-API-Key': KEY }
   });
   const { variant } = await res.json();
 
-  if (variant === 'modern')    return `${BASE}/lap-meta/${pageId}`;
-  if (variant === 'legacy_v1') return `${BASE}/lap-meta/legacy_v1/${pageId}`;
+  // The page carries both key styles — needs a human, not a guess.
+  if (variant === 'ambiguous') {
+    throw new Error(`Page ${pageId} carries both legacy and modern keys`);
+  }
 
-  // ambiguous or undetermined — needs a human, not a guess.
-  throw new Error(`Page ${pageId} variant is ${variant}`);
+  // 'undetermined' just means the page is empty, which is normal for one you
+  // created a moment ago. The endpoint accepts the write unless the site
+  // contradicts the route, so there is nothing to resolve here.
+  return routes[variant === 'undetermined' ? intended : variant](pageId);
 }
 ```
 
@@ -392,6 +403,10 @@ speakeasy/v1/lap-meta/{page_id}  ← WP REST API route
     ├── validates API key (X-Speakeasy-API-Key header)
     ├── confirms page exists and uses localareapage.php template
     ├── confirms Meta Box plugin is active
+    ├── confirms the page's variant matches this route
+    │      ├── legacy page      → 400 variant_mismatch
+    │      ├── both key styles  → 400 ambiguous_field_variant
+    │      └── no LAP meta      → allowed, unless the SITE is plainly legacy
     │
     ├── GET  → rwmb_meta()     → returns current field values
     └── POST → rwmb_set_meta() → writes only the fields you send
@@ -666,6 +681,7 @@ print('Updated:', r.json()['updated'])
 
 - Meta Box plugin must be **active** on the site
 - The page must use the **`localareapage.php`** page template
+- The page must not identify as `legacy_v1` or `ambiguous` — a page with no LAP meta yet is accepted
 - The plugin API key must be configured (Settings → WP Speakeasy)
 
 ### Troubleshooting
@@ -867,6 +883,29 @@ Ambiguity errors name the conflict rather than just reporting one:
 }
 ```
 
+Mismatch errors say what was detected and what decided it:
+
+```json
+{
+  "code": "variant_mismatch",
+  "message": "This page has no LAP meta yet and this site uses the modern LAP field set. Use speakeasy/v1/lap-meta/4043 instead.",
+  "data": {
+    "status": 400,
+    "detected_variant": "modern",
+    "route_variant": "legacy_v1",
+    "detected_from": "site"
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `detected_variant` | The variant that contradicts the route |
+| `route_variant` | The variant this route serves |
+| `detected_from` | `page` when the page's own meta decided it, `site` when the surrounding site did |
+
+`detected_from` is the one to branch on: `page` means this page belongs on the other route, while `site` means the page itself is empty and the rest of the site disagrees with your choice.
+
 ---
 
 ### Examples
@@ -920,13 +959,13 @@ print('Updated:', r.json()['updated'], 'Failed:', r.json()['failed'])
 
 - Meta Box plugin must be **active** on the site
 - The page must use the **`localareapage.php`** page template
-- The page's variant must resolve to `legacy_v1`
+- The page must not identify as `modern` or `ambiguous` — a page with no LAP meta yet is accepted, unless the rest of the site is plainly modern
 - The plugin API key must be configured (Settings → WP Speakeasy)
 
 ### Troubleshooting
 
 **400 variant_mismatch**
-The page uses modern keys. Send it to `speakeasy/v1/lap-meta/{page_id}` instead. The error body includes `page_variant` and `route_variant`.
+The page uses modern keys. Send it to `speakeasy/v1/lap-meta/{page_id}` instead. The error body's `data` carries `detected_variant`, `route_variant`, and `detected_from`.
 
 **400 ambiguous_field_variant**
 The page has both key styles, usually from a partial migration or a previous write to the wrong route. The `markers` object names the conflicting keys. Decide which set the template actually renders, clear the other in wp-admin, then retry.

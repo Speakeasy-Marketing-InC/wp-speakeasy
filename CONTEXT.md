@@ -620,19 +620,69 @@ inspection-verified.
 6. **Open decision**: whether variant detection should probe more than three marker keys.
 7. `admin/views/dashboard.php` is 652 lines, over the file size limit. Pre-existing, untouched.
 
+
+## SESSION 10 — 2026-08-17 — REST API Doc Audit — closed
+Branch: main
+
+### WHAT WAS DONE
+
+Documentation only — no code changed.
+
+Audited `docs/REST-API.md` against the implementation rather than assuming session 9's pass had
+caught everything. It had not: five things still described the pre-session-9 behavior.
+
+1. **Modern route's flow diagram** listed no variant guard at all — it still showed the route going
+   straight from the Meta Box check to reading and writing.
+2. **Route-chooser example** threw on `undetermined`, telling callers a fresh page needs a human.
+   It now takes the variant the caller intends and returns the matching route, since an empty page
+   is exactly the create case that now works.
+3. **Modern prerequisites** did not mention the variant condition.
+4. **Legacy prerequisites** still required the page to "resolve to `legacy_v1`", which excluded the
+   empty pages the route now accepts.
+5. **`page_variant`** was referenced in legacy troubleshooting — that error-data field was renamed
+   to `detected_variant` when the guard moved to the base class, and `detected_from` was added.
+
+Also documented the `variant_mismatch` error body, which had no reference at all: a worked example
+plus a table for `detected_variant` / `route_variant` / `detected_from`, and the note that
+`detected_from` is the field to branch on — `page` means the page belongs on the other route, `site`
+means the page is empty and the surrounding site disagrees with the caller's choice.
+
+### VERIFIED BY CROSS-CHECK, NOT BY EYE
+
+- All 10 error codes named in the LAP sections exist in the code; no code returns an error the docs
+  do not name.
+- All 6 registered routes match the documented ones.
+- Legacy field table: 26 documented, 26 in the schema file, no drift either way.
+- Modern field table: 15 top-level fields matching `define_fields()`, plus 4 repeater sub-fields
+  documented under their own headings.
+- Confirmed `variant_undetermined`, `page_variant`, and the "fails silently" framing no longer
+  appear anywhere in the LAP sections.
+
+### STILL OPEN AT CLOSE
+
+Unchanged from session 9. Nothing here touched code:
+
+1. **No test has ever executed** — sessions 7, 8, 9. Still the largest risk.
+2. Existing modern tests reasoned about, not run.
+3. Test 20 needs a real legacy site.
+4. Mancebo hypothesis unconfirmed.
+5. wordpress-mcp needs variant discovery, and its `create_lap_legacy_v1` description still carries
+   the create-flow limitation that no longer holds.
+6. Open decision: whether detection should probe more than three marker keys.
+7. `admin/views/dashboard.php` is 652 lines. Pre-existing.
+
 ---
 
 ## NEXT SESSION START POINT
 
 Read CLAUDE.md, MEMORY.md, CONTEXT.md, and DECISIONS.md in that order.
 
-The LAP variant work is feature-complete and pushed. One decision is open (marker breadth); nothing
-blocks it.
+The LAP variant work is feature-complete, documented and pushed. One decision is open (marker
+breadth); nothing blocks it.
 
-**Run the test suite before anything else.** Three sessions of work have never executed. Stand up
-WordPress + Meta Box, run all suites, and treat the modern endpoint's untouched tests as the
-contract on the base-class extraction and the new guards. Everything below is lower priority than
-this.
+**Run the test suite before anything else.** Four sessions of work have never executed. Stand up
+WordPress + Meta Box, run every suite, and treat the modern endpoint's tests as the contract on both
+the base-class extraction and the new guards. Everything below is lower priority.
 
 Then:
 
@@ -655,8 +705,3 @@ composer phpcs                # Check coding standards (reads phpcs.xml.dist)
 composer phpstan              # Run static analysis
 composer test                 # Run test suite (requires WordPress test environment)
 ```
-
----
-
-## SESSION 10 — 2026-08-17 — REST API Doc Audit — open
-Branch: main
