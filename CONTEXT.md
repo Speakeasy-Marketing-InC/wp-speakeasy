@@ -387,45 +387,120 @@ locally). Tests verified for correctness by inspection, consistent with prior se
 
 ---
 
+## SESSION 7 — 2026-08-17 — Legacy LAP Plugin Endpoint Compatibility — closed
+Branch: main
+
+### WHAT WAS DONE
+
+Diagnosed and fixed a silent failure on sites running the legacy LAP plugin.
+
+**The bug.** The LAP plugin exists in two versions storing the same content under different meta
+keys — squashed lowercase (`spk_mainheading`) in legacy, underscore-separated (`spk_main_heading`)
+in modern. The two sets do not overlap at all. `define_fields()` in the LAP meta endpoint listed
+only modern keys, so on a legacy site GET returned blanks and POST wrote keys the legacy template
+never reads. The write genuinely persisted, so session 6's round-trip verification passed and the
+endpoint reported success indefinitely while changing nothing on the page.
+
+Both versions ship a template named `localareapage.php`, so `detect_lap_templates()` resolved both
+to the same schema and the variant could not be identified by filename.
+
+**The fix** (PRP: `PRPs/legacy-lap-variant-endpoints.md`, approved before implementation):
+
+- `GET speakeasy/v1/lap-variant` — site verdict, `mixed` flag, per-variant counts. Fixed 2-query
+  cost regardless of LAP page count.
+- `GET speakeasy/v1/lap-variant/{page_id}` — per-page verdict plus the marker keys behind it.
+- `GET|POST speakeasy/v1/lap-meta/legacy_v1/{page_id}` — the 26 legacy fields in their native key
+  names and shapes.
+- `Speakeasy_LAP_Endpoint_Base` extracted for auth, LAP page validation and Meta Box availability;
+  modern endpoint went 364 → 249 lines with behavior unchanged.
+
+### DECISIONS MADE (user-approved)
+
+- **Route per variant, not a normalizing endpoint.** The variants differ in shape as well as
+  spelling — legacy phone is a string vs. modern repeater, legacy's three fixed content blocks vs.
+  modern `spk_gridbox_repeater` — so translation would need per-field conversion with gaps both
+  ways. Recorded in MEMORY.md § 6.
+- **Shared base class over duplication** (DECISIONS.md § RESOLVED). Chosen because the variant
+  family is expected to grow to `legacy_v2`.
+- **Refuse to guess on every ambiguous case.** `variant_mismatch`, `ambiguous_field_variant`,
+  `variant_undetermined` all return 400 and write nothing rather than inferring a key style.
+  Reads are permitted on `undetermined` pages; writes are not.
+
+### NON-OBVIOUS IMPLEMENTATION NOTES
+
+- **Image fields use `get_post_meta`/`update_post_meta`, not Meta Box.** The legacy template reads
+  every image with `get_post_meta( $post->ID, 'spk_bannerbgimg', true )` and passes it straight to
+  `wp_get_attachment_url()` — it needs a bare attachment ID, not a Meta Box array. Routing these
+  through `rwmb_set_meta()` would persist a shape the template cannot read, recreating session 6's
+  silent failure in a new file. 7 of the 26 fields are affected.
+- **String fields are written unsanitized**, matching the modern endpoint. Several hold HTML the
+  site depends on — the WYSIWYG content blocks and `spk_mapiframe`, which holds a map embed — and
+  `wp_kses_post()` would strip that markup and damage live pages. Both endpoints are gated on the
+  API key.
+- `Speakeasy_LAP_Variant_Detector` was added beyond the PRP's file list: detection is needed by both
+  the discovery endpoint and the legacy endpoint's guards, so it would otherwise be duplicated.
+
+### VERIFICATION
+
+**PHPCS**: 0 errors on all 8 new/modified files. 4 warnings remain, both direct-DB-call pairs in the
+detector — the same warnings the pre-existing `detect_lap_templates()` produces.
+**PHPStan**: only the categories already present codebase-wide (missing WP function stubs, iterable
+value types). The detector is clean of both.
+**PHPUnit**: **could not run.** No WordPress test library available locally — the suite dies on
+`WP_UnitTestCase` in `tests/test-admin-page.php` before reaching any new test. Pre-existing, same as
+sessions 4–6. The 24 PRP test cases are written and verified by inspection only.
+
+### STILL OPEN AT CLOSE
+
+1. **`tests/test-lap-meta-legacy-v1-endpoint.php` is 515 lines — over the 500-line limit.** A split
+   was proposed and is awaiting approval; no code was moved. Proposed:
+   - `tests/class-legacy-v1-test-case.php` (~85) — abstract case with setUp/tearDown and helpers
+   - `tests/test-lap-meta-legacy-v1-endpoint.php` (~250) — auth, validation, GET, POST persistence
+   - `tests/test-lap-meta-legacy-v1-guards.php` (~190) — the three variant-guard error paths
+2. **No test has ever executed.** Everything above is inspection-verified. The suite needs a
+   WordPress + Meta Box environment.
+3. **Test 20 needs a real legacy site** — that legacy image writes persist as bare attachment IDs
+   the template can actually read is the assertion guarding against repeating session 6, and it is
+   meaningless without one.
+4. **Session 6's Mancebo conclusion may be wrong.** If that site runs legacy LAP, then
+   `spk_gridbox_repeater` does not exist there at all and the Meta Box field-group misconfiguration
+   recorded in session 6 is a misdiagnosis. One call to
+   `GET speakeasy/v1/lap-variant/4043` settles it. Untested hypothesis, not a finding.
+5. **wordpress-mcp (outside this repo) still needs updating** — it should call `/lap-variant` first
+   and address the matching route, rather than assuming the modern one.
+6. `admin/views/dashboard.php` is 652 lines, over the file size limit. Pre-existing, untouched.
+
+---
+
 ## NEXT SESSION START POINT
 
-WP Speakeasy plugin v1.0.0 is complete and committed.
+Read CLAUDE.md, MEMORY.md, CONTEXT.md, and DECISIONS.md in that order.
 
-The plugin provides:
-- Modular architecture for easy extension
-- Application Passwords force-enabler (overrides restrictions)
-- LAP meta fields exposed to REST API
-- GitHub auto-updater capability
-- API reporting for monitoring
-- Admin interface for diagnostics
+Nothing in DECISIONS.md is open. The legacy LAP variant work is complete and pushed; what remains is
+verification, which needs environments this repo does not have.
 
-Next session options:
-1. **Testing & Deployment**: Install dependencies, run tests, deploy to staging WordPress site
-2. **Additional Features**: New modules (e.g., image optimization, SEO automation)
-3. **Schema Generation**: Build tool to scan existing LAP pages and generate schema files
-4. **Admin Enhancements**: Module enable/disable toggles, field mapping UI
-5. **Documentation**: API integration guide, deployment playbook
+Highest value first:
 
-Code quality checklist (to run before deployment):
+1. **Split the legacy test file** (item 1 above). The split is specified and only needs approval —
+   it is the one piece of session 7's own work left unfinished, and it puts the repo back inside the
+   file size rule.
+2. **Run the suite somewhere real.** Stand up WordPress + Meta Box test environment, run all 24 new
+   cases plus the untouched modern-endpoint suite. The modern suite passing unmodified is the
+   contract on the base-class extraction.
+3. **Settle the Mancebo question** (item 4). One API call. If it comes back `legacy_v1`, session 6's
+   record needs correcting and the client's actual fix is the legacy route.
+4. **Update wordpress-mcp** to do variant discovery before reading or writing LAP meta.
+5. **`legacy_v2` when it appears.** The base class, detector and route pattern are built to absorb
+   it: add a marker key set to `Speakeasy_LAP_Variant_Detector::MARKERS`, a schema file, and an
+   endpoint class extending the base.
+
+Endpoint documentation is in `docs/REST-API.md` §§ LAP Plugin Variants / LAP Meta Fields (modern) /
+LAP Meta Fields (legacy_v1).
+
+Code quality checklist:
 ```bash
 composer install              # Install dependencies
 composer phpcs                # Check coding standards
 composer phpstan              # Run static analysis
 composer test                 # Run test suite (requires WordPress test environment)
 ```
-
-Configuration required in wp-config.php:
-```php
-// For auto-updates (optional)
-define( 'SPEAKEASY_GITHUB_REPO', 'speakeasy/wp-speakeasy' );
-define( 'SPEAKEASY_GITHUB_TOKEN', 'ghp_xxx' );
-
-// For API reporting (optional)
-define( 'SPEAKEASY_API_ENDPOINT', 'https://api.speakeasy.com/wp-plugin' );
-define( 'SPEAKEASY_API_TOKEN', 'spk_xxx' );
-```
-
----
-
-## SESSION 7 — 2026-08-17 — Legacy LAP Plugin Endpoint Compatibility — open
-Branch: main
